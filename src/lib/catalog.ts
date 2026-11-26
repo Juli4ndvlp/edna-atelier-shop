@@ -108,6 +108,12 @@ export async function ensureSeeded(): Promise<boolean> {
   return true;
 }
 
+/** Devuelve la conexión ya validada por `ensureSeeded`; nunca degrada a datos semilla. */
+function requireDb() {
+  if (!db) throw new Error("DATABASE_URL is required for the catalog");
+  return db;
+}
+
 const productSelect = {
   id: products.id,
   slug: products.slug,
@@ -131,7 +137,7 @@ const productSelect = {
 export async function getCategories(): Promise<CategoryItem[]> {
   try {
     if (!(await ensureSeeded())) return fallbackCategories;
-    return await db.select().from(categories).orderBy(asc(categories.id));
+    return await requireDb().select().from(categories).orderBy(asc(categories.id));
   } catch (error) {
     console.error("catalog categories query failed", error);
     throw error;
@@ -143,7 +149,7 @@ export async function getFeaturedProducts(limit = 8): Promise<ProductWithCategor
     if (!(await ensureSeeded())) {
       return fallbackProducts.filter((p) => p.featured).slice(0, limit);
     }
-    return await db
+    return await requireDb()
       .select(productSelect)
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
@@ -161,7 +167,7 @@ export async function getNewProducts(limit = 4): Promise<ProductWithCategory[]> 
     if (!(await ensureSeeded())) {
       return fallbackProducts.filter((p) => p.isNew).slice(0, limit);
     }
-    return await db
+    return await requireDb()
       .select(productSelect)
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
@@ -243,7 +249,7 @@ export async function searchProducts(filters: ProductFilters): Promise<ProductWi
 
     const limit = Math.min(Math.max(Math.floor(filters.limit ?? 60), 1), 100);
     const offset = Math.max(0, Math.floor(filters.offset ?? 0));
-    return await db
+    return await requireDb()
       .select(productSelect)
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
@@ -262,7 +268,7 @@ export async function getProductBySlug(slug: string): Promise<ProductWithCategor
     if (!(await ensureSeeded())) {
       return fallbackProducts.find((p) => p.slug === slug) ?? null;
     }
-    const [row] = await db
+    const [row] = await requireDb()
       .select(productSelect)
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
@@ -286,7 +292,7 @@ export async function getRelatedProducts(
         .filter((p) => p.categoryId === categoryId && p.id !== excludeId)
         .slice(0, limit);
     }
-    return await db
+    return await requireDb()
       .select(productSelect)
       .from(products)
       .innerJoin(categories, eq(products.categoryId, categories.id))
