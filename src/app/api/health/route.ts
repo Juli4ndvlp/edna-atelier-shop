@@ -5,6 +5,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (!isDatabaseConfigured || !db) {
+    if (process.env.NODE_ENV === "production") {
+      return Response.json({ ok: false, mode: "database-unconfigured" }, { status: 503 });
+    }
     return Response.json({ ok: true, mode: "static-catalog" });
   }
   try {

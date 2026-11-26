@@ -32,6 +32,7 @@ export async function loginAction(formData: FormData) {
 
   const hdrs = await headers();
   const ip = getClientIpFromHeaders(hdrs);
+  if (!ip) redirect("/admin/login?error=config");
   if (!(await checkRateLimit(`admin-login:${ip}`, 8, 1000 * 60 * 10))) {
     redirect("/admin/login?error=rate");
   }

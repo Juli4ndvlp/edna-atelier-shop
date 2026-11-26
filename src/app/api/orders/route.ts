@@ -53,6 +53,9 @@ class OrderError extends Error {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
+  if (!ip) {
+    return Response.json({ error: "La IP del cliente no está configurada en el proxy" }, { status: 503 });
+  }
   if (!(await checkRateLimit(`orders:${ip}`, 15, 1000 * 60 * 10))) {
     return Response.json(
       { error: "Has realizado demasiados intentos. Espera unos minutos." },

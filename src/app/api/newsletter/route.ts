@@ -10,6 +10,9 @@ const schema = z.object({ email: z.string().trim().email().max(160) });
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
+  if (!ip) {
+    return Response.json({ error: "La IP del cliente no está configurada en el proxy" }, { status: 503 });
+  }
   if (!(await checkRateLimit(`newsletter:${ip}`, 10, 1000 * 60 * 10))) {
     return Response.json({ error: "Demasiados intentos. Intenta en unos minutos." }, { status: 429 });
   }

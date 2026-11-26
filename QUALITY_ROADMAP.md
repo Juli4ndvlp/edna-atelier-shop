@@ -12,7 +12,7 @@ fallos ya comprobados.
 | 1. Identidad visual | Hecha | Blanco/negro + volt, liquid glass, foco visible y movimiento reducido. Falta revisión visual manual en varios móviles. |
 | 2. Pedidos, precios y stock | Código hecho; operación pendiente | Idempotencia, recotización y reserva transaccional. Faltan migraciones y pruebas concurrentes contra Postgres no productivo. |
 | 3. Seguridad y administración | Cambios locales aplicados; validación pendiente | CSP con nonce, control de estado y PII reducida. Rate limit, secretos, límite de cuerpos y confianza en proxy se deben verificar tras los cambios; hosting, cron y secretos de producción siguen sin confirmar. |
-| 4. SEO, accesibilidad y conversión | Cambios locales aplicados; validación pendiente | Se reportaron auditorías Lighthouse locales favorables, pero faltan sus artefactos y metadatos reproducibles. La indexabilidad de filtros y el estado accesible de filtros se están corrigiendo. No equivale a Search Console, WCAG ni Core Web Vitals de campo. |
+| 4. SEO, accesibilidad y conversión | Cambios locales aplicados; validación pendiente | Las reglas de indexación de filtros y el estado accesible de controles activos están implementados localmente. Falta revisar el código, validar manualmente y guardar evidencia; Search Console, WCAG y Core Web Vitals de campo siguen pendientes. |
 | 5. Astro incremental | Piloto legal completo; rollout pendiente | Las tres páginas legales y su paridad están completas en preview. No hay rutas ni headers de producción; falta confirmar hosting, estrategia de rutas, CSP/HSTS y Measurement ID real. |
 
 ## Evidencia y alcance de validaciones
@@ -42,16 +42,20 @@ menos 32 caracteres.
 - [ ] **ORD-02 — Pagos:** los métodos tarjeta/transferencia/contraentrega no implican una pasarela integrada. Decidir qué métodos se ofrecerán realmente y probar sus flujos.
 - [ ] **ORD-03 — Devoluciones/cancelación:** confirmar la regla de reponer stock al cancelar pedidos ya pagados y definir el proceso/estado de devolución; probar que nunca reponga unidades dos veces.
 - [ ] **TEST-DB — Integración:** probar con Postgres no productivo idempotencia concurrente, compras simultáneas del último artículo, cancelación y liberación por cron.
+- [x] **DB-03 — Herramienta segura:** `drizzle-kit` se actualizó a `0.31.11` porque la versión `0.18.1` no ofrecía `push` para Postgres; `drizzle.config.ts` ahora exige `DATABASE_URL` y ya no apunta a `localhost` con credenciales fijas. No se ejecutó ningún comando contra una base real.
 
 ### Despliegue y seguridad
 
-- [ ] **OPS-04 — WhatsApp de negocio:** confirmar con el negocio el número internacional real y configurarlo en `NEXT_PUBLIC_WHATSAPP_NUMBER` en producción. Validar 10–15 dígitos y rechazar el número demo `573000000000`; si falta o es inválido, no debe haber CTA a un destino de muestra. La confirmación del número queda pendiente de despliegue; no inferirlo ni copiarlo de `.env.local`.
+- [ ] **OPS-05 — Readiness y configuración de proxy:** corrección implementada localmente: `/api/health` devuelve `503` en producción si falta `DATABASE_URL` y `500` si falla la consulta a DB; las rutas con rate limit devuelven `503` cuando falta una IP válida desde la cabecera confiable configurada y no usan la cubeta `unknown` en producción. Pendiente revisar código y validar en hosting con la cabecera real del proxy. No marcar como verificado hasta obtener evidencia.
+
+- [ ] **OPS-04 — WhatsApp de negocio:** el negocio confirmó el número el 2026-11-25 (10 dígitos, Colombia). Falta cargarlo únicamente como `NEXT_PUBLIC_WHATSAPP_NUMBER` en Netlify y validar que no se use el destino demo `573000000000`; no se copiará de `.env.local` ni se guardará en el repo.
 
 - [x] **SEC-03 — Rate limit de newsletter:** `POST /api/newsletter` ahora espera `checkRateLimit`; prueba HTTP local confirmó `400` en las primeras 10 solicitudes inválidas y `429` en la 11.ª.
 - [x] **REL-03 — Build sin variables locales:** al simular un entorno Netlify sin `.env.local`, el build fallaba porque `db` podía ser `null` en `src/lib/catalog.ts`; se añadió una verificación explícita y el build con `NODE_ENV=production` y sin `DATABASE_URL` vuelve a pasar.
+- [x] **REL-04 — Verificación previa al deploy:** el 2026-11-25 pasaron `npm run typecheck`, `npm run lint`, `npm test` (5/5) y `npm run build` con `NODE_ENV=production`, `DATABASE_URL` vacía y `NEXT_PUBLIC_SITE_URL=https://prueba.netlify.app`. El lint había detectado el bundle temporal generado por las pruebas; `tests/.tmp/**` quedó excluido de ESLint. Typecheck y build no se ejecutaron en paralelo porque competen por `.next/types`.
 - [ ] **OPS-01 — Hosting:** registrar proveedor, dominio/canonical y proxy de producción.
 - [ ] **OPS-03 — Variables de producción:** confirmar catálogo real y `DATABASE_URL`; crear contraseñas/secrets únicos por entorno, validar `ADMIN_SESSION_SECRET` independiente y no usar valores de `.env.example`.
-- [ ] **OPS-02 — Cron:** crear `CRON_SECRET` aleatorio de al menos 32 caracteres y programar `GET /api/cron/expire-orders` cada 15 minutos. Verificar ejecuciones, errores y alertas en el hosting.
+- [ ] **OPS-02 — Cron:** `.github/workflows/expire-orders.yml` está preparado en el espacio local, pero aún falta incluirlo en GitHub. Configurar `COBIJO_CRON_URL` y `COBIJO_CRON_SECRET` como secrets del repositorio, validar URL HTTPS/ruta permitida y verificar la ejecución real cada 15 minutos, incluidos errores y alertas. No marcar completo hasta comprobar una ejecución del workflow.
 - [ ] **SEC-01 — CSP real:** revisar reportes/consola en el dominio desplegado; validar nonce en rutas dinámicas, imágenes, enlaces externos y posibles integraciones futuras. Habilitar HSTS con `includeSubDomains`/`preload` solo cuando todos los subdominios estén listos para HTTPS.
 - [ ] **SEC-02 — Proxy/IP:** registrar proveedor, cabecera de IP confiable y evidencia de que el proxy elimina o reemplaza valores enviados por el cliente antes de configurar `TRUSTED_CLIENT_IP_HEADER`.
 - [ ] **SEC-05 — Cuerpos API:** verificar el límite de bytes para pedidos/newsletter, incluyendo solicitudes sin `Content-Length`, y confirmar el límite equivalente del hosting.

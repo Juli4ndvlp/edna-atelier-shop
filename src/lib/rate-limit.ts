@@ -64,16 +64,18 @@ export async function checkRateLimit(key: string, limit: number, windowMs: numbe
   return checkLocalRateLimit(key, limit, windowMs);
 }
 
-export function getClientIpFromHeaders(headers: Headers): string {
+export function getClientIpFromHeaders(headers: Headers): string | null {
   const configuredHeader = process.env.TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase();
   const isProd = process.env.NODE_ENV === "production";
-  if (!configuredHeader && isProd) return "unknown";
+  if (!configuredHeader && isProd) return null;
 
   const headersToTry = configuredHeader
     ? [configuredHeader]
     : ["x-real-ip", "x-forwarded-for"];
   for (const selectedHeader of headersToTry) {
-    if (selectedHeader !== "x-real-ip" && selectedHeader !== "x-forwarded-for") return "unknown";
+    if (selectedHeader !== "x-real-ip" && selectedHeader !== "x-forwarded-for") {
+      return isProd ? null : "unknown";
+    }
     const value = headers.get(selectedHeader)?.trim();
     if (!value) continue;
     if (selectedHeader === "x-real-ip") {
@@ -88,9 +90,9 @@ export function getClientIpFromHeaders(headers: Headers): string {
       if (isIP(hops[index])) return hops[index];
     }
   }
-  return "unknown";
+  return isProd ? null : "unknown";
 }
 
-export function getClientIp(request: Request): string {
+export function getClientIp(request: Request): string | null {
   return getClientIpFromHeaders(request.headers);
 }

@@ -1,0 +1,48 @@
+name: Expirar pedidos reservados
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: expire-orders
+  cancel-in-progress: false
+
+jobs:
+  expire-orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Llamar al endpoint de expiración
+        env:
+          CRON_URL: ${{ secrets.COBIJO_CRON_URL }}
+          CRON_SECRET: ${{ secrets.COBIJO_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Faltan los secrets COBIJO_CRON_URL o COBIJO_CRON_SECRET del repositorio"
+            exit 1
+          fi
+
+          case "$CRON_URL" in
+            https://*/api/cron/expire-orders) ;;
+            *)
+              echo "::error::COBIJO_CRON_URL debe ser HTTPS y apuntar a /api/cron/expire-orders"
+              exit 1
+              ;;
+          esac
+
+          status=$(curl --silent --show-error --proto '=https' --max-time 30 \
+            --output /tmp/expire-orders-response.json \
+            --write-out "%{http_code}" \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_URL")
+
+          cat /tmp/expire-orders-response.json
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::El endpoint respondió HTTP $status"
+            exit 1
+          fi
