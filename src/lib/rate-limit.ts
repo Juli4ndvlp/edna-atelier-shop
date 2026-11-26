@@ -4,11 +4,16 @@ import { db } from "@/db";
 import { rateLimitBuckets } from "@/db/schema";
 
 type Bucket = { count: number; resetAt: number };
+export type RateLimitResult = "allowed" | "limited" | "unavailable";
 
 const buckets = new Map<string, Bucket>();
 let sharedCleanupCounter = 0;
 
-function checkLocalRateLimit(key: string, limit: number, windowMs: number): boolean {
+function checkLocalRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Exclude<RateLimitResult, "unavailable"> {
   const now = Date.now();
   for (const [bucketKey, bucket] of buckets) {
     if (bucket.resetAt <= now) buckets.delete(bucketKey);
@@ -16,16 +21,20 @@ function checkLocalRateLimit(key: string, limit: number, windowMs: number): bool
   const current = buckets.get(key);
   if (!current || current.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
+    return "allowed";
   }
   if (current.count >= limit) {
-    return false;
+    return "limited";
   }
   current.count += 1;
-  return true;
+  return "allowed";
 }
 
-export async function checkRateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
+export async function checkRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<RateLimitResult> {
   if (db) {
     const now = new Date();
     const nextReset = new Date(now.getTime() + windowMs);
@@ -51,15 +60,15 @@ export async function checkRateLimit(key: string, limit: number, windowMs: numbe
           console.error("rate limit cleanup failed", error);
         }
       }
-      return bucket.count <= limit;
+      return bucket.count <= limit ? "allowed" : "limited";
     } catch (error) {
       console.error("shared rate limit unavailable; rejecting request", error);
-      return false;
+      return "unavailable";
     }
   }
   if (process.env.NODE_ENV === "production") {
     console.error("shared rate limit unavailable in production; rejecting request");
-    return false;
+    return "unavailable";
   }
   return checkLocalRateLimit(key, limit, windowMs);
 }

@@ -13,7 +13,11 @@ export async function POST(request: Request) {
   if (!ip) {
     return Response.json({ error: "La IP del cliente no está configurada en el proxy" }, { status: 503 });
   }
-  if (!(await checkRateLimit(`newsletter:${ip}`, 10, 1000 * 60 * 10))) {
+  const rateLimit = await checkRateLimit(`newsletter:${ip}`, 10, 1000 * 60 * 10);
+  if (rateLimit === "unavailable") {
+    return Response.json({ error: "El servicio no está disponible temporalmente" }, { status: 503 });
+  }
+  if (rateLimit === "limited") {
     return Response.json({ error: "Demasiados intentos. Intenta en unos minutos." }, { status: 429 });
   }
 

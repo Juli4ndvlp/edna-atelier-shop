@@ -11,8 +11,8 @@ fallos ya comprobados.
 | 0. Inventario y base del proyecto | Hecha | AutoSkills instalado; instrucciones del repo y agentes de Cobijo creados. |
 | 1. Identidad visual | Hecha | Blanco/negro + volt, liquid glass, foco visible y movimiento reducido. Falta revisión visual manual en varios móviles. |
 | 2. Pedidos, precios y stock | Código hecho; operación pendiente | Idempotencia, recotización y reserva transaccional. Faltan migraciones y pruebas concurrentes contra Postgres no productivo. |
-| 3. Seguridad y administración | Cambios locales aplicados; validación pendiente | CSP con nonce, control de estado y PII reducida. Rate limit, secretos, límite de cuerpos y confianza en proxy se deben verificar tras los cambios; hosting, cron y secretos de producción siguen sin confirmar. |
-| 4. SEO, accesibilidad y conversión | Cambios locales aplicados; validación pendiente | Las reglas de indexación de filtros y el estado accesible de controles activos están implementados localmente. Falta revisar el código, validar manualmente y guardar evidencia; Search Console, WCAG y Core Web Vitals de campo siguen pendientes. |
+| 3. Seguridad y administración | Código implementado; validación de hosting pendiente | CSP con nonce, control de estado y PII reducida. Rate limit, secretos, límite de cuerpos y confianza en proxy están implementados; hosting, cron y secretos de producción siguen sin confirmar. Parte del código está en `main` y parte tiene cambios locales sin commit. |
+| 4. SEO, accesibilidad y conversión | Cambios de código en `main`; validación pendiente | Las reglas de indexación de filtros y el estado accesible de controles activos están implementados. Falta revisión manual y evidencia; Search Console, WCAG y Core Web Vitals de campo siguen pendientes. |
 | 5. Astro incremental | Piloto legal completo; rollout pendiente | Las tres páginas legales y su paridad están completas en preview. No hay rutas ni headers de producción; falta confirmar hosting, estrategia de rutas, CSP/HSTS y Measurement ID real. |
 
 ## Evidencia y alcance de validaciones
@@ -46,18 +46,18 @@ menos 32 caracteres.
 
 ### Despliegue y seguridad
 
-- [ ] **OPS-05 — Readiness y configuración de proxy:** corrección implementada localmente: `/api/health` devuelve `503` en producción si falta `DATABASE_URL` y `500` si falla la consulta a DB; las rutas con rate limit devuelven `503` cuando falta una IP válida desde la cabecera confiable configurada y no usan la cubeta `unknown` en producción. Pendiente revisar código y validar en hosting con la cabecera real del proxy. No marcar como verificado hasta obtener evidencia.
+- [ ] **OPS-05 — Readiness y configuración de proxy:** el código devuelve `503` en producción si falta `DATABASE_URL` o falla la consulta de salud; las rutas con rate limit fallan de forma cerrada si falta una IP válida desde la cabecera confiable configurada y no usan la cubeta `unknown` en producción. Pendiente validar en hosting la respuesta de salud y la cabecera real del proxy. No marcar como verificado hasta obtener evidencia.
 
 - [ ] **OPS-04 — WhatsApp de negocio:** el negocio confirmó el número el 2026-11-25 (10 dígitos, Colombia). Falta cargarlo únicamente como `NEXT_PUBLIC_WHATSAPP_NUMBER` en Netlify y validar que no se use el destino demo `573000000000`; no se copiará de `.env.local` ni se guardará en el repo.
 
 - [x] **SEC-03 — Rate limit de newsletter:** `POST /api/newsletter` ahora espera `checkRateLimit`; prueba HTTP local confirmó `400` en las primeras 10 solicitudes inválidas y `429` en la 11.ª.
 - [x] **REL-03 — Build sin variables locales:** al simular un entorno Netlify sin `.env.local`, el build fallaba porque `db` podía ser `null` en `src/lib/catalog.ts`; se añadió una verificación explícita y el build con `NODE_ENV=production` y sin `DATABASE_URL` vuelve a pasar.
 - [x] **REL-04 — Verificación previa al deploy:** el 2026-11-25 pasaron `npm run typecheck`, `npm run lint`, `npm test` (8/8) y `npm run build` con `NODE_ENV=production`, `DATABASE_URL` vacía y `NEXT_PUBLIC_SITE_URL=https://prueba.netlify.app`. El lint había detectado el bundle temporal generado por las pruebas; `tests/.tmp/**` quedó excluido de ESLint. Typecheck y build no se ejecutaron en paralelo porque competen por `.next/types`.
-- [ ] **OPS-01 — Hosting:** registrar proveedor, dominio/canonical y proxy de producción.
+- [ ] **OPS-01 — Hosting:** Netlify está elegido. Falta confirmar dominio/canonical definitivo y validar en producción la configuración del proxy y sus cabeceras.
 - [ ] **OPS-03 — Variables de producción:** confirmar catálogo real y `DATABASE_URL`; crear contraseñas/secrets únicos por entorno, validar `ADMIN_SESSION_SECRET` independiente y no usar valores de `.env.example`.
-- [ ] **OPS-02 — Cron:** `.github/workflows/expire-orders.yml` está preparado en el espacio local, pero aún falta incluirlo en GitHub. Configurar `COBIJO_CRON_URL` y `COBIJO_CRON_SECRET` como secrets del repositorio, validar URL HTTPS/ruta permitida y verificar la ejecución real cada 15 minutos, incluidos errores y alertas. No marcar completo hasta comprobar una ejecución del workflow.
+- [ ] **OPS-02 — Cron:** el workflow `.github/workflows/expire-orders.yml` está en la rama local. Confirmar que está en la rama por defecto de GitHub, configurar `COBIJO_CRON_URL` y `COBIJO_CRON_SECRET` como secrets del repositorio, y verificar una ejecución real cada 15 minutos, incluidos errores y alertas. La URL debe ser HTTPS y apuntar exactamente a `/api/cron/expire-orders`; el workflow valida también la respuesta JSON `ok: true`. No marcar completo hasta comprobar una ejecución del workflow.
 - [ ] **SEC-01 — CSP real:** revisar reportes/consola en el dominio desplegado; validar nonce en rutas dinámicas, imágenes, enlaces externos y posibles integraciones futuras. Habilitar HSTS con `includeSubDomains`/`preload` solo cuando todos los subdominios estén listos para HTTPS.
-- [ ] **SEC-02 — Proxy/IP:** para Netlify se eligió `x-nf-client-connection-ip`, la cabecera documentada por Netlify para la IP de conexión; `x-forwarded-for` no se usará porque el proveedor no garantiza sanearla. El código ya la acepta y hay pruebas unitarias, pero falta confirmar en el sitio desplegado que los endpoints protegidos reciben el valor correcto y que un `x-forwarded-for` del cliente no puede influir.
+- [ ] **SEC-02 — Proxy/IP:** para Netlify se configuró el soporte de `x-nf-client-connection-ip`; no configurar `x-forwarded-for` sin demostrar que el proxy sanea la cadena. Hay pruebas unitarias de lectura/validación del header, pero falta confirmar en el sitio desplegado que los endpoints reciben el valor esperado y que una cabecera enviada por el cliente no puede influir.
 - [ ] **SEC-05 — Cuerpos API:** verificar el límite de bytes para pedidos/newsletter, incluyendo solicitudes sin `Content-Length`, y confirmar el límite equivalente del hosting.
 
 ### Calidad, SEO y conversión
@@ -83,7 +83,8 @@ menos 32 caracteres.
 
 ### Release y mantenimiento
 
-- [ ] **REL-01 — Git:** el entorno actual no es un repositorio Git; antes de publicar, revisar diff/estado y guardar un commit.
+- [ ] **REL-01 — Git:** revisar el diff/estado antes de publicar y confirmar la sincronización con GitHub. En la última inspección, `main` estaba tres commits por delante de `origin/main`; la referencia remota local no permite confirmar el estado actual en GitHub.
+- [ ] **REL-05 — Gestor de paquetes:** `package.json`/`package-lock.json` fijan `drizzle-kit` `^0.31.11`, pero `pnpm-lock.yaml` conserva `^0.18.1`/`0.18.1`. Confirmar si el proyecto admite pnpm y regenerar su lockfile en un entorno con pnpm/red, o documentar npm como único gestor soportado y retirar el lock/workspace obsoleto en un cambio revisado. No editar resoluciones manualmente.
 - [ ] **REL-02 — Verificación final:** ejecutar typecheck, lint, builds de Next y Astro, Lighthouse, smoke tests de rutas y pruebas de integración de pedidos tras aplicar migraciones. Guardar evidencia con los campos definidos arriba y parar siempre el servidor de smoke test, incluso si falla una ruta.
 
 ## Registro de agentes
