@@ -73,12 +73,16 @@ export function getClientIpFromHeaders(headers: Headers): string | null {
     ? [configuredHeader]
     : ["x-real-ip", "x-forwarded-for"];
   for (const selectedHeader of headersToTry) {
-    if (selectedHeader !== "x-real-ip" && selectedHeader !== "x-forwarded-for") {
+    const isSupported =
+      selectedHeader === "x-real-ip" ||
+      selectedHeader === "x-forwarded-for" ||
+      selectedHeader === "x-nf-client-connection-ip";
+    if (!isSupported) {
       return isProd ? null : "unknown";
     }
     const value = headers.get(selectedHeader)?.trim();
     if (!value) continue;
-    if (selectedHeader === "x-real-ip") {
+    if (selectedHeader !== "x-forwarded-for") {
       if (isIP(value)) return value;
       continue;
     }

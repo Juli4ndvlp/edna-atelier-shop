@@ -14,6 +14,6 @@ export async function GET() {
     await db.execute(sql`select 1`);
     return Response.json({ ok: true, mode: "database" });
   } catch {
-    return Response.json({ ok: false }, { status: 500 });
+    return Response.json({ ok: false, mode: "database-unavailable" }, { status: 503 });
   }
 }
