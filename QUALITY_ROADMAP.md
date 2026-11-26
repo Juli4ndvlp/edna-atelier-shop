@@ -83,8 +83,9 @@ menos 32 caracteres.
 
 ### Release y mantenimiento
 
-- [ ] **REL-01 — Git:** revisar el diff/estado antes de publicar y confirmar la sincronización con GitHub. En la última inspección, `main` estaba tres commits por delante de `origin/main`; la referencia remota local no permite confirmar el estado actual en GitHub.
-- [ ] **REL-05 — Gestor de paquetes:** `package.json`/`package-lock.json` fijan `drizzle-kit` `^0.31.11`, pero `pnpm-lock.yaml` conserva `^0.18.1`/`0.18.1`. Confirmar si el proyecto admite pnpm y regenerar su lockfile en un entorno con pnpm/red, o documentar npm como único gestor soportado y retirar el lock/workspace obsoleto en un cambio revisado. No editar resoluciones manualmente.
+- [x] **REL-01 — Git:** revisado el diff/estado antes de publicar. `main` y `origin/main` estaban sincronizados en `30b941d`; el fix de build se publica en el commit siguiente y su deploy se verifica con la API de Netlify.
+- [x] **REL-05 — Gestor de paquetes:** npm queda como gestor único para el proyecto raíz, según los comandos de `AGENTS.md` y el `package-lock.json` actualizado. Se retiraron el `pnpm-lock.yaml` obsoleto y su `pnpm-workspace.yaml`; Astro mantiene su propio `package-lock.json`. No se regeneraron resoluciones ni se ejecutó instalación.
+- [x] **REL-06 — Primer deploy de Netlify:** el deploy de producción en `30b941d` terminó en `error` y el sitio respondió el 404 genérico de Netlify. Causa: Netlify detectó `pnpm-lock.yaml` y ejecutó `pnpm install --frozen-lockfile` con un lockfile desactualizado (`drizzle-kit` 0.18.1 frente a `^0.31.11`). Se añadió `netlify.toml` con `command = "npm run build"`, `publish = ".next"` y Node 22. El PR automático `#1` del bot proponía pnpm y duplicaba la corrección de `catalog.ts` ya presente en `main`; su rama se eliminó sin fusionar.
 - [ ] **REL-02 — Verificación final:** ejecutar typecheck, lint, builds de Next y Astro, Lighthouse, smoke tests de rutas y pruebas de integración de pedidos tras aplicar migraciones. Guardar evidencia con los campos definidos arriba y parar siempre el servidor de smoke test, incluso si falla una ruta.
 
 ## Registro de agentes

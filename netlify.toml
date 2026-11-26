@@ -1,0 +1,8 @@
+# El proyecto raíz usa package-lock.json. Fijar npm evita que Netlify detecte
+# un lockfile pnpm obsoleto y ejecute `pnpm install --frozen-lockfile`.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
