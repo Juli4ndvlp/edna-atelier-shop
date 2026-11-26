@@ -1,0 +1,85 @@
+---
+import "../../../../src/app/globals.css";
+import CookieBanner from "../components/CookieBanner.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+}
+
+const { title, description, canonicalPath } = Astro.props;
+const siteUrl = Astro.site ?? new URL("https://ednaatelier.com");
+const canonical = new URL(canonicalPath, siteUrl);
+const nextRoute = (path: string) => new URL(path, siteUrl).toString();
+const rawGaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? "";
+const gaMeasurementId = /^G-[A-Z0-9]+$/.test(rawGaMeasurementId)
+  ? rawGaMeasurementId
+  : "";
+---
+
+<!doctype html>
+<html lang="es-CO">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#d8ff3e" />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="EDNA ATELIER" />
+    <meta property="og:title" content={`${title} · EDNA ATELIER`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <title>{title} · EDNA ATELIER</title>
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <a
+      href="#contenido"
+      class="sr-only fixed left-4 top-4 z-[100] rounded-md bg-volt px-4 py-3 font-semibold text-ink focus:not-sr-only"
+    >
+      Saltar al contenido
+    </a>
+    <header class="px-3 pt-3 sm:px-6 sm:pt-4">
+      <div class="glass-float mx-auto flex max-w-6xl items-center justify-between rounded-full px-4 py-3 sm:px-6">
+        <a href={nextRoute("/")} class="font-display text-lg font-bold text-ink sm:text-2xl">
+          EDNA <span class="text-clay-dark">ATELIER</span>
+        </a>
+        <nav aria-label="Navegación principal" class="flex items-center gap-2 text-sm font-medium sm:gap-4">
+          <a class="min-h-11 content-center text-ink hover:text-clay-dark" href={nextRoute("/tienda")}>Catálogo</a>
+          <a class="btn-primary min-h-11 !px-4" href={nextRoute("/carrito")}>Mi carrito</a>
+        </nav>
+      </div>
+    </header>
+    <main id="contenido" tabindex="-1" class="flex-1">
+      <slot />
+    </main>
+    <footer class="mt-16 border-t border-ink/10 px-4 py-8 text-sm text-ink/80 sm:px-6">
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
+        <span>EDNA ATELIER · Taller de confección en Bogotá</span>
+        <nav aria-label="Información legal" class="flex flex-wrap gap-4">
+          <a class="underline underline-offset-4 hover:text-clay-dark" href={nextRoute("/privacidad")}>Privacidad</a>
+          <a class="underline underline-offset-4 hover:text-clay-dark" href={nextRoute("/terminos")}>Términos</a>
+          <a class="underline underline-offset-4 hover:text-clay-dark" href={nextRoute("/cookies")}>Cookies</a>
+          <button
+            type="button"
+            data-open-cookie-settings
+            class="min-h-11 text-left underline underline-offset-4 hover:text-clay-dark"
+          >
+            Configurar cookies
+          </button>
+        </nav>
+      </div>
+    </footer>
+    <CookieBanner />
+    <script is:inline src="/scripts/cookie-banner.js" defer></script>
+    {gaMeasurementId && (
+      <script
+        is:inline
+        src="/scripts/ga4.js"
+        data-ga-measurement-id={gaMeasurementId}
+        defer
+      ></script>
+    )}
+  </body>
+</html>

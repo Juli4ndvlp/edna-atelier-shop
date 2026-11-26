@@ -1,0 +1,95 @@
+# Fases, validaciones y pendientes finales
+
+Este registro evita dar por cerrados los puntos que se dejaron para después. Los
+ítems marcados como pendientes requieren validación o decisión; no se consideran
+fallos ya comprobados.
+
+## Estado por fase
+
+| Fase | Estado | Validación / nota |
+| --- | --- | --- |
+| 0. Inventario y base del proyecto | Hecha | AutoSkills instalado; instrucciones del repo y agentes de Cobijo creados. |
+| 1. Identidad visual | Hecha | Blanco/negro + volt, liquid glass, foco visible y movimiento reducido. Falta revisión visual manual en varios móviles. |
+| 2. Pedidos, precios y stock | Código hecho; operación pendiente | Idempotencia, recotización y reserva transaccional. Faltan migraciones y pruebas concurrentes contra Postgres no productivo. |
+| 3. Seguridad y administración | Cambios locales aplicados; validación pendiente | CSP con nonce, control de estado y PII reducida. Rate limit, secretos, límite de cuerpos y confianza en proxy se deben verificar tras los cambios; hosting, cron y secretos de producción siguen sin confirmar. |
+| 4. SEO, accesibilidad y conversión | Cambios locales aplicados; validación pendiente | Se reportaron auditorías Lighthouse locales favorables, pero faltan sus artefactos y metadatos reproducibles. La indexabilidad de filtros y el estado accesible de filtros se están corrigiendo. No equivale a Search Console, WCAG ni Core Web Vitals de campo. |
+| 5. Astro incremental | Piloto legal completo; rollout pendiente | Las tres páginas legales y su paridad están completas en preview. No hay rutas ni headers de producción; falta confirmar hosting, estrategia de rutas, CSP/HSTS y Measurement ID real. |
+
+## Evidencia y alcance de validaciones
+
+Los resultados históricos de Lighthouse y de pruebas locales que aparecen más abajo
+son referencias, no una aprobación de esta ronda. Para cerrar una validación nueva,
+registrar: fecha/hora, URL y entorno, commit o identificador del árbol, comando y
+versión de herramienta, resultado, y ruta al reporte o captura. Si no existe commit,
+indicar explícitamente `sin commit` y conservar el reporte en un artefacto del proyecto.
+Una puntuación Lighthouse local no demuestra indexación, cumplimiento WCAG ni métricas
+de campo.
+
+El catálogo de muestra solo corresponde a desarrollo/demo. En producción se requiere
+`DATABASE_URL`, un catálogo real y cargado antes de publicar; un error o una base vacía
+no debe hacer que el sitio muestre productos semilla. Los secretos de producción se
+configuran por entorno, nunca copiando valores de ejemplo: `ADMIN_PASSWORD`, un
+`ADMIN_SESSION_SECRET` independiente de al menos 32 caracteres y `CRON_SECRET` de al
+menos 32 caracteres.
+
+## Pendientes que se harán al cierre
+
+### Pedidos, stock y base de datos
+
+- [ ] **DB-01 — Destino confirmado:** revisar `DATABASE_URL` de producción y aplicar, en ese orden, `drizzle/0001_order_safety.sql` y `drizzle/0002_reservation_expiry.sql`. No ejecutar `drizzle-kit push` a ciegas.
+- [ ] **DB-02 — Validar datos existentes:** revisar órdenes abiertas antes de la migración. `0002` da a las órdenes `pendiente`/`whatsapp` existentes al menos 24 horas desde que se aplica.
+- [ ] **ORD-01 — Regla comercial:** confirmar que 24 horas es el plazo correcto y definir si se avisa al cliente antes/después de cancelar por expiración.
+- [ ] **ORD-02 — Pagos:** los métodos tarjeta/transferencia/contraentrega no implican una pasarela integrada. Decidir qué métodos se ofrecerán realmente y probar sus flujos.
+- [ ] **ORD-03 — Devoluciones/cancelación:** confirmar la regla de reponer stock al cancelar pedidos ya pagados y definir el proceso/estado de devolución; probar que nunca reponga unidades dos veces.
+- [ ] **TEST-DB — Integración:** probar con Postgres no productivo idempotencia concurrente, compras simultáneas del último artículo, cancelación y liberación por cron.
+
+### Despliegue y seguridad
+
+- [ ] **OPS-04 — WhatsApp de negocio:** confirmar con el negocio el número internacional real y configurarlo en `NEXT_PUBLIC_WHATSAPP_NUMBER` en producción. Validar 10–15 dígitos y rechazar el número demo `573000000000`; si falta o es inválido, no debe haber CTA a un destino de muestra. La confirmación del número queda pendiente de despliegue; no inferirlo ni copiarlo de `.env.local`.
+
+- [x] **SEC-03 — Rate limit de newsletter:** `POST /api/newsletter` ahora espera `checkRateLimit`; prueba HTTP local confirmó `400` en las primeras 10 solicitudes inválidas y `429` en la 11.ª.
+- [ ] **OPS-01 — Hosting:** registrar proveedor, dominio/canonical y proxy de producción.
+- [ ] **OPS-03 — Variables de producción:** confirmar catálogo real y `DATABASE_URL`; crear contraseñas/secrets únicos por entorno, validar `ADMIN_SESSION_SECRET` independiente y no usar valores de `.env.example`.
+- [ ] **OPS-02 — Cron:** crear `CRON_SECRET` aleatorio de al menos 32 caracteres y programar `GET /api/cron/expire-orders` cada 15 minutos. Verificar ejecuciones, errores y alertas en el hosting.
+- [ ] **SEC-01 — CSP real:** revisar reportes/consola en el dominio desplegado; validar nonce en rutas dinámicas, imágenes, enlaces externos y posibles integraciones futuras. Habilitar HSTS con `includeSubDomains`/`preload` solo cuando todos los subdominios estén listos para HTTPS.
+- [ ] **SEC-02 — Proxy/IP:** registrar proveedor, cabecera de IP confiable y evidencia de que el proxy elimina o reemplaza valores enviados por el cliente antes de configurar `TRUSTED_CLIENT_IP_HEADER`.
+- [ ] **SEC-05 — Cuerpos API:** verificar el límite de bytes para pedidos/newsletter, incluyendo solicitudes sin `Content-Length`, y confirmar el límite equivalente del hosting.
+
+### Calidad, SEO y conversión
+
+- [ ] **A11Y-01 — Recorrido manual:** navegar portada, tienda, producto, carrito, checkout, banner de cookies y admin con teclado; comprobar foco no oculto, lector de pantalla, zoom 200% y móvil.
+- [ ] **A11Y-02 — Navegadores/dispositivos:** revisar Chrome, Safari iOS y Android real; Lighthouse local no sustituye pruebas manuales ni WCAG completo.
+- [ ] **UX-01 — Compra real controlada:** recorrer desde selección de talla hasta WhatsApp/confirmación con datos de prueba y revisar mensajes de errores, recotización, stock y abandono.
+- [ ] **UX-02 — GA4/consentimiento:** integración de código lista en modo básico; spec aprobado. Falta crear stream/obtener Measurement ID, validar payloads/red con propiedad real y configurar CSP/variables del hosting. Sin ID, GA4 permanece apagado.
+- [ ] **SEO-01 — Indexación:** comprobar que solo base de tienda, categorías y remates individuales acordados son indexables; combinaciones no canónicas deben ser `noindex` y canonicalizarse a su ruta limpia. Search Console, sitemap publicado, inspección de URLs, datos enriquecidos y resultados reales quedan pendientes; Lighthouse local no predice rankings.
+- [ ] **SEO-02 — Rendimiento de campo:** medir Core Web Vitals en producción y comparar el coste de SSR dinámico requerido por la CSP con el piloto Astro.
+
+### Astro
+
+- [x] **ASTRO-01 — Preview base:** `/privacidad` estático compila, comparte `src/app/globals.css`, responde HTTP 200 y Lighthouse da 100/100 en SEO/accesibilidad.
+- [x] **ASTRO-02 — Consentimiento/GA4:** opciones, revocación a “Solo necesarias” y sincronización entre pestañas; script GA4 externo solo se solicita con consentimiento y `PUBLIC_GA_MEASUREMENT_ID`. No se verificó CSP del hosting.
+- [x] **ASTRO-03a — Paridad de privacidad:** texto, fecha, correo y enlaces del piloto comparados con Next; nombre y correo ahora vienen de `src/lib/site.ts`.
+- [x] **ASTRO-03b — Paridad legal restante:** `/terminos` y `/cookies` ya compilan en el preview Astro y se compararon con sus páginas Next; contenido y enlaces legales están alineados.
+- [ ] **ASTRO-04 — Rutas:** confirmar cómo el proveedor enruta solo páginas migradas a Astro y mantiene API/checkout/admin en Next; documentar rollback y validar rutas antes de tráfico real.
+- [ ] **ASTRO-05 — CSP:** demostrar que Astro recibe encabezados compatibles; el script externo puede bloquearse bajo la CSP `strict-dynamic` actual si se hereda sin política específica.
+- [ ] **ASTRO-06 — Catálogo:** no importar `lib/catalog.ts` en Astro; diseñar y probar contrato de API antes de migrar portada/tienda/producto.
+- [x] **ASTRO-07a — Paridad de páginas legales:** canonical, Open Graph, navegación y Lighthouse comparados en las tres páginas editoriales; no usan JSON-LD ni imágenes de contenido.
+- [ ] **ASTRO-07b — Paridad para nuevas rutas:** mantener la comparación de sitemap y assets al migrar más páginas; el sitemap de producción sigue siendo responsabilidad de Next hasta decidir el hosting.
+
+### Release y mantenimiento
+
+- [ ] **REL-01 — Git:** el entorno actual no es un repositorio Git; antes de publicar, revisar diff/estado y guardar un commit.
+- [ ] **REL-02 — Verificación final:** ejecutar typecheck, lint, builds de Next y Astro, Lighthouse, smoke tests de rutas y pruebas de integración de pedidos tras aplicar migraciones. Guardar evidencia con los campos definidos arriba y parar siempre el servidor de smoke test, incluso si falla una ruta.
+
+## Registro de agentes
+
+| Fase | Agente/herramienta usada | Configuración local | Resultado |
+| --- | --- | --- | --- |
+| 0 / preparación | AutoSkills (instalación previa) | `cobijo-logic-guardian`, `cobijo-design-qa`, `astro-migration-scout`, `release-verifier` creados en `.opencode/agents/` | Cuatro perfiles disponibles; no implica que todos se hayan ejecutado. |
+| SEO | Subagente `general`, instruido con `.agents/skills/seo/SKILL.md` | No existe `.opencode/agents/seo*.md` | Auditoría de solo lectura y hallazgos corregidos. AutoSkills instaló una **skill SEO**, no un agente SEO. |
+| Astro (actual) | Subagente `general`, siguiendo el perfil `astro-migration-scout`; scaffold y página piloto creados manualmente en esta sesión | Se reutiliza `astro-migration-scout.md`; no se crea otro agente | Scout recomienda empezar por legales. La llamada a `architect` falló por límite de uso y no produjo cambios; completé manualmente el piloto y sus validaciones. |
+| Cookie banner Astro | Subagente `general`, siguiendo `cobijo-design-qa.md` y `.agents/skills/accessibility/SKILL.md` | Perfil preexistente, solo lectura | Revisión encontró temas de revocación, sincronización y foco; correcciones aplicadas y verificadas en Chrome. CSP del hosting sigue pendiente. |
+| GA4 | Implementación directa y verificaciones locales | Sin agente adicional | Usuario aprobó `docs/specs/ga4-analytics.md`; modo básico. Astro: prueba Chrome con ID ficticio, opt-in/page_view/revocación y destinos de Google bloqueados. Next: prueba Chrome sin ID, banner y preferencias/revocación; sin solicitudes de Google. Falta probar tag Next y ambas plataformas con Measurement ID real/hosting. |
+| Seguridad Netlify | Subagente `security-auditor`, solo lectura | No se editó durante auditoría | Hallazgos priorizados: IP/proxy y rate limit distribuido dependen de Netlify/DB; secretos admin; propagación CSP; endpoint de pedido y cron. Se corrigió después el `await` faltante en newsletter y se verificó por HTTP en un entorno aislado local. |
+| Release | Ejecución directa de scripts y Lighthouse desde esta sesión | `release-verifier` existe | Typecheck/lint/build/Lighthouse/smoke se corrieron aquí; el agente local de release no se invocó como agente aparte. |
+| Auditoría integral (2026-11-25) | Tres subagentes de solo lectura: seguridad, SEO/accesibilidad y plan/spec | Sin acceso a `.env.local`; no se inspeccionó producción | Se reportaron riesgos de cabeceras proxy, fallback del rate limit, límite de cuerpo JSON, catálogo de muestra, filtros indexables y trazabilidad del plan. Los cambios locales de código y documentación están implementados, pero no verificados con typecheck, lint, build ni hosting. No marcar las validaciones como completas sin evidencia. |

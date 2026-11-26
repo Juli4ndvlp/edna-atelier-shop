@@ -1,0 +1,20 @@
+{
+  "name": "@edna-atelier/marketing-astro-preview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "4.3.5",
+    "astro": "7.4.13",
+    "tailwindcss": "4.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.6",
+    "typescript": "5.9.3"
+  }
+}

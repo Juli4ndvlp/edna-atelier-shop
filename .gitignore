@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env.local
+.env.*.local
+!.env.example
+next-env.d.ts
+*.tsbuildinfo
+apps/marketing-astro/dist/
+apps/marketing-astro/.astro/

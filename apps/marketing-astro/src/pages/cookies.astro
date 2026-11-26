@@ -1,0 +1,93 @@
+---
+import MarketingLayout from "../layouts/MarketingLayout.astro";
+
+const title = "Política de Cookies";
+const description =
+  "Uso de cookies y almacenamiento local en EDNA ATELIER para el carrito, seguridad y preferencias.";
+const privacyUrl = "/privacidad";
+const catalogUrl = "https://ednaatelier.com/tienda";
+---
+
+<MarketingLayout title={title} description={description} canonicalPath="/cookies">
+  <div class="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <article class="glass-surface space-y-6 rounded-3xl p-6 sm:p-10">
+      <header>
+        <p class="text-xs font-semibold uppercase tracking-widest text-clay-dark">
+          Transparencia Digital
+        </p>
+        <h1 class="font-display mt-2 text-3xl font-bold text-ink sm:text-4xl">
+          Política de Cookies
+        </h1>
+        <p class="mt-2 text-sm text-ink/75">
+          EDNA ATELIER · Última actualización: noviembre de 2026
+        </p>
+      </header>
+
+      <section class="space-y-2 text-sm leading-relaxed text-ink/85">
+        <h2 class="text-lg font-semibold text-ink">1. ¿Para qué usamos cookies?</h2>
+        <p>
+          Utilizamos almacenamiento técnico esencial para conservar las prendas que añades a tu
+          carrito de compras, recordar tu preferencia de privacidad y proteger el panel de
+          administración del taller. Google Analytics 4 puede usar cookies de analítica únicamente
+          si aceptas esa categoría; puedes cambiar tu decisión desde “Configurar cookies”.
+        </p>
+      </section>
+
+      <section class="space-y-3 text-sm leading-relaxed text-ink/85">
+        <h2 class="text-lg font-semibold text-ink">2. Detalle técnico</h2>
+        <div class="overflow-x-auto rounded-2xl border border-white/75 bg-white/65">
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead class="border-b border-sand text-ink">
+              <tr>
+                <th class="p-3 font-semibold">Nombre</th>
+                <th class="p-3 font-semibold">Tipo</th>
+                <th class="p-3 font-semibold">Finalidad</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-sand/70">
+              <tr>
+                <td class="p-3 font-mono">edna-atelier-cart-v1</td>
+                <td class="p-3">Necesaria (localStorage)</td>
+                <td class="p-3">Guarda las prendas de tu carrito antes de enviar por WhatsApp.</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono">edna_consent</td>
+                <td class="p-3">Necesaria (Cookie)</td>
+                <td class="p-3">Recuerda un resumen de tu elección sobre el banner de cookies.</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono">edna-atelier-cookie-consent-v1</td>
+                <td class="p-3">Preferencias (localStorage)</td>
+                <td class="p-3">
+                  Conserva la selección de analítica y personalización para respetar tu elección.
+                </td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono">_ga, _ga_*</td>
+                <td class="p-3">Analítica opcional (Cookie)</td>
+                <td class="p-3">
+                  Google Analytics 4 las usa para medir visitas y sesiones solo después de aceptar
+                  analítica. Puedes retirar el consentimiento desde “Configurar cookies”.
+                </td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono">__Host-edna_atelier_admin</td>
+                <td class="p-3">Seguridad (Solo taller)</td>
+                <td class="p-3">Sesión cifrada HttpOnly del panel de administración.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="flex flex-wrap gap-3 border-t border-white/60 pt-5 text-sm">
+        <a class="font-semibold underline underline-offset-4 hover:text-clay-dark" href={privacyUrl}>
+          Política de Privacidad
+        </a>
+        <a class="font-semibold underline underline-offset-4 hover:text-clay-dark" href={catalogUrl}>
+          Volver al catálogo
+        </a>
+      </footer>
+    </article>
+  </div>
+</MarketingLayout>
