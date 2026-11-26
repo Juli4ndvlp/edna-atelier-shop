@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { cartActions, useCart } from "@/lib/cart";
 import { FREE_SHIPPING_THRESHOLD, calcShipping, formatPrice } from "@/lib/format";
-import { buildWhatsAppUrl, formatCartWhatsAppMessage } from "@/lib/whatsapp";
+import { buildSafeWhatsAppUrl, formatCartWhatsAppMessage } from "@/lib/whatsapp";
 
 export default function CartPage() {
   const { items, subtotal } = useCart();
@@ -14,7 +14,7 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
-        <div className="glass-surface rounded-3xl p-10">
+        <div className="glass-surface rounded-xl p-10">
           <p className="text-5xl" aria-hidden="true">
             🧺
           </p>
@@ -30,7 +30,7 @@ export default function CartPage() {
     );
   }
 
-  const whatsappUrl = buildWhatsAppUrl(
+  const whatsappUrl = buildSafeWhatsAppUrl(
     formatCartWhatsAppMessage({
       items: items.map((i) => ({
         name: i.name,
@@ -49,7 +49,7 @@ export default function CartPage() {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_390px] lg:gap-10">
         <div>
-          <div className="glass-surface mb-6 rounded-2xl p-4 text-sm text-ink">
+          <div className="glass-surface mb-6 rounded-xl p-4 text-sm text-ink">
             {missing > 0 ? (
               <>
                 Te faltan <strong>{formatPrice(missing)}</strong> para envío gratis en Bogotá y
@@ -58,9 +58,9 @@ export default function CartPage() {
             ) : (
               <>🎉 ¡Tu pedido califica para envío gratis!</>
             )}
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/80">
+            <div className="mt-2 h-2.5 overflow-hidden rounded-md border border-ink/30 bg-white/90">
               <div
-                className="h-full rounded-full bg-volt transition-all"
+                className="h-full bg-ink transition-all"
                 style={{ width: `${Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)}%` }}
               />
             </div>
@@ -70,11 +70,11 @@ export default function CartPage() {
             {items.map((item) => (
               <li
                 key={`${item.productId}-${item.size}-${item.color}`}
-                className="glass-card glass-interactive flex gap-3 rounded-2xl p-3.5 sm:gap-4 sm:p-4"
+                className="glass-card glass-interactive flex gap-3 rounded-xl p-3.5 sm:gap-4 sm:p-4"
               >
                 <Link
                   href={`/producto/${item.slug}`}
-                  className="relative h-28 w-20 shrink-0 overflow-hidden rounded-xl bg-sand sm:h-32 sm:w-24"
+                  className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-surface-muted sm:h-32 sm:w-24"
                 >
                   <Image
                     src={item.image}
@@ -102,7 +102,7 @@ export default function CartPage() {
                     </p>
                   </div>
                   <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
-                    <div className="glass-pill flex items-center rounded-full">
+                    <div className="glass-pill flex items-center rounded-lg">
                       <button
                         type="button"
                         className="grid h-11 w-11 place-items-center text-lg"
@@ -135,7 +135,7 @@ export default function CartPage() {
           </ul>
         </div>
 
-        <aside className="glass-surface h-fit rounded-3xl p-6">
+        <aside className="glass-surface h-fit rounded-xl p-6">
           <h2 className="text-lg font-semibold text-ink">Resumen del pedido</h2>
           <dl className="mt-4 space-y-3 text-sm text-ink">
             <div className="flex justify-between">
@@ -146,15 +146,21 @@ export default function CartPage() {
               <dt className="text-ink/80">Envío estimado</dt>
               <dd className="font-medium">{shipping === 0 ? "Gratis" : formatPrice(shipping)}</dd>
             </div>
-            <div className="flex justify-between border-t border-white/60 pt-3 text-base font-semibold">
+            <div className="flex justify-between border-t border-ink/10 pt-3 text-base font-semibold">
               <dt>Total</dt>
               <dd>{formatPrice(subtotal + shipping)}</dd>
             </div>
           </dl>
 
-          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn-whatsapp mt-6 w-full">
-            Pedir todo por WhatsApp
-          </a>
+          {whatsappUrl ? (
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn-whatsapp mt-6 w-full">
+              Pedir todo por WhatsApp
+            </a>
+          ) : (
+            <button type="button" disabled className="btn-whatsapp mt-6 w-full">
+              WhatsApp no configurado en producción
+            </button>
+          )}
 
           <Link href="/checkout" className="btn-outline mt-3 w-full">
             Completar datos de entrega

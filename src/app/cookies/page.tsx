@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function CookiesPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <article className="glass-surface space-y-6 rounded-3xl p-6 sm:p-10">
+      <article className="glass-surface space-y-6 rounded-xl p-6 sm:p-10">
         <header>
           <p className="text-xs font-semibold uppercase tracking-widest text-clay-dark">
             Transparencia Digital
@@ -45,16 +45,16 @@ export default function CookiesPage() {
 
         <section className="space-y-3 text-sm leading-relaxed text-ink/85">
           <h2 className="text-lg font-semibold text-ink">2. Detalle técnico</h2>
-          <div className="overflow-x-auto rounded-2xl border border-white/75 bg-white/65">
+          <div className="overflow-x-auto rounded-lg border border-ink/15 bg-white/75">
             <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="border-b border-sand text-ink">
+              <thead className="border-b border-ink/15 text-ink">
                 <tr>
-                  <th className="p-3 font-semibold">Nombre</th>
-                  <th className="p-3 font-semibold">Tipo</th>
-                  <th className="p-3 font-semibold">Finalidad</th>
+                  <th scope="col" className="p-3 font-semibold">Nombre</th>
+                  <th scope="col" className="p-3 font-semibold">Tipo</th>
+                  <th scope="col" className="p-3 font-semibold">Finalidad</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-sand/70">
+              <tbody className="divide-y divide-ink/10">
                 <tr>
                   <td className="p-3 font-mono">edna-atelier-cart-v1</td>
                   <td className="p-3">Necesaria (localStorage)</td>
@@ -90,11 +90,11 @@ export default function CookiesPage() {
           </div>
         </section>
 
-        <footer className="flex flex-wrap gap-3 border-t border-white/60 pt-5 text-sm">
-          <Link href="/privacidad" className="font-semibold underline underline-offset-4 hover:text-clay-dark">
+        <footer className="flex flex-wrap gap-3 border-t border-ink/10 pt-5 text-sm">
+          <Link href="/privacidad" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 hover:text-clay-dark">
             Política de Privacidad
           </Link>
-          <Link href="/tienda" className="font-semibold underline underline-offset-4 hover:text-clay-dark">
+          <Link href="/tienda" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 hover:text-clay-dark">
             Volver al catálogo
           </Link>
         </footer>

@@ -11,6 +11,10 @@ function configuredWhatsAppNumber(): string | null {
   return digits;
 }
 
+export function isDemoWhatsAppNumber(): boolean {
+  return configuredWhatsAppNumber() === null;
+}
+
 export function getWhatsAppNumber(): string {
   const configured = configuredWhatsAppNumber();
   if (configured) return configured;
@@ -22,8 +26,11 @@ export function getWhatsAppNumber(): string {
   return DEFAULT_WHATSAPP_NUMBER;
 }
 
-export function isDemoWhatsAppNumber(): boolean {
-  return configuredWhatsAppNumber() === null;
+export function buildSafeWhatsAppUrl(message: string): string | null {
+  const configured = configuredWhatsAppNumber();
+  const target = configured ?? (process.env.NODE_ENV === "production" ? null : DEFAULT_WHATSAPP_NUMBER);
+  if (!target) return null;
+  return `https://wa.me/${target}?text=${encodeURIComponent(message)}`;
 }
 
 export function buildWhatsAppUrl(message: string): string {
@@ -85,10 +92,14 @@ export function formatCartWhatsAppMessage(input: {
   items: WhatsAppOrderLine[];
   customer?: WhatsAppCustomerInfo;
   orderCode?: string;
+  totals?: { subtotal: number; shipping: number; total: number };
 }): string {
-  const subtotal = input.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = calcShipping(subtotal);
-  const total = subtotal + shipping;
+  // En pedidos confirmados se usan los valores persistidos: las tarifas vigentes
+  // pueden haber cambiado desde que se creó la orden.
+  const subtotal =
+    input.totals?.subtotal ?? input.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const shipping = input.totals?.shipping ?? calcShipping(subtotal);
+  const total = input.totals?.total ?? subtotal + shipping;
 
   const lines: string[] = [
     input.orderCode

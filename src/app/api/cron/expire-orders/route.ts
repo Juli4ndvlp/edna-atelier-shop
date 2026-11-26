@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { revalidateTag } from "next/cache";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orders, products } from "@/db/schema";
@@ -60,7 +61,8 @@ export async function GET(request: Request) {
         );
       }
 
-      for (const [productId, quantity] of unitsByProduct) {
+      const sortedUpdates = [...unitsByProduct.entries()].sort((a, b) => a[0] - b[0]);
+      for (const [productId, quantity] of sortedUpdates) {
         await tx
           .update(products)
           .set({ stock: sql`${products.stock} + ${quantity}` })
@@ -80,9 +82,13 @@ export async function GET(request: Request) {
 
       return {
         expired: expiredOrders.length,
-        releasedUnits: [...unitsByProduct.values()].reduce((total, quantity) => total + quantity, 0),
+        releasedUnits: sortedUpdates.reduce((total, [, quantity]) => total + quantity, 0),
       };
     });
+
+    if (result.expired > 0) {
+      revalidateTag("catalog", "max");
+    }
 
     return Response.json({ ok: true, ...result });
   } catch (error) {

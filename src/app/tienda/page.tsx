@@ -2,30 +2,23 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ProductCard } from "@/components/ProductCard";
 import { getCategories, searchProducts } from "@/lib/catalog";
+import { parseShopSearchParams, type ShopSearchInput } from "@/lib/catalog-params";
 
 export const dynamic = "force-dynamic";
-
-type SP = Record<string, string | string[] | undefined>;
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
 
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<SP>;
+  searchParams: Promise<ShopSearchInput>;
 }): Promise<Metadata> {
   const sp = await searchParams;
-  const rawCategory = one(sp.categoria);
-  const category = rawCategory === "sudaderas" ? "buzos" : rawCategory;
-  const sale = one(sp.ofertas) === "1";
-  const hasSaleParam = one(sp.ofertas) !== undefined;
-  const q = one(sp.q)?.slice(0, 80);
-  const sort = one(sp.orden);
-  const gender = one(sp.genero);
+  const { rawCategory, category, sale, hasSaleParam, q, sort, gender, hasRepeatedFilter } =
+    parseShopSearchParams(sp);
+
   const categories = await getCategories();
   const categoryItem = categories.find((item) => item.slug === category);
   const categoryName = categoryItem?.name ?? "";
   const categoryExists = Boolean(categoryItem);
-  const hasRepeatedFilter = Object.values(sp).some((value) => Array.isArray(value) && value.length > 1);
 
   const label = q
     ? `Buscar “${q}”`
@@ -71,17 +64,20 @@ export async function generateMetadata({
   };
 }
 
-export default async function ShopPage({ searchParams }: { searchParams: Promise<SP> }) {
+export default async function ShopPage({
+  searchParams,
+}: {
+  searchParams: Promise<ShopSearchInput>;
+}) {
   const sp = await searchParams;
-  const rawCategory = one(sp.categoria);
-  const normalizedCategory = rawCategory === "sudaderas" ? "buzos" : rawCategory;
+  const parsed = parseShopSearchParams(sp);
 
   const filters = {
-    category: normalizedCategory,
-    gender: one(sp.genero),
-    q: one(sp.q)?.slice(0, 80),
-    sort: one(sp.orden),
-    sale: one(sp.ofertas) === "1",
+    category: parsed.category,
+    gender: parsed.gender,
+    q: parsed.q,
+    sort: parsed.sort,
+    sale: parsed.sale,
   };
 
   const [categories, items] = await Promise.all([getCategories(), searchProducts(filters)]);
@@ -102,10 +98,10 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   };
 
   const chip = (active: boolean) =>
-    `inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 py-2 text-sm font-medium transition ${
+    `inline-flex min-h-11 shrink-0 items-center rounded-md border px-4 py-2 text-sm font-semibold transition ${
       active
-        ? "border-volt bg-volt text-ink shadow-sm"
-        : "border-white/80 bg-white/70 text-ink backdrop-blur-md hover:-translate-y-0.5 hover:border-volt"
+        ? "border-ink bg-volt text-ink shadow-sm"
+        : "border-ink/20 bg-white/75 text-ink backdrop-blur-md hover:-translate-y-0.5 hover:border-ink"
     }`;
 
   const activeCat = categories.find((c) => c.slug === filters.category);
@@ -128,7 +124,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
         </p>
       </div>
 
-      <div className="glass-surface mt-6 flex flex-col gap-4 rounded-3xl p-4">
+      <div className="glass-surface mt-6 flex flex-col gap-4 rounded-xl p-4">
         <div
           role="group"
           aria-label="Filtrar por categoría"
@@ -160,7 +156,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
           </Link>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-3">
           <div role="group" aria-label="Filtrar por género" className="flex flex-wrap gap-2">
             <Link
               href={href({ genero: undefined })}
@@ -213,7 +209,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       <p className="mt-5 text-sm font-medium text-ink/75">{items.length} prendas disponibles</p>
 
       {items.length === 0 ? (
-        <div className="glass-card mt-6 rounded-3xl py-20 text-center">
+        <div className="glass-card mt-6 rounded-xl py-20 text-center">
           <p className="text-lg text-ink">No encontramos prendas con esos filtros.</p>
           <Link href="/tienda" className="btn-primary mt-6">
             Ver todo el catálogo
@@ -221,8 +217,8 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
         </div>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
-          {items.map((p) => (
-            <ProductCard key={p.id} product={p} />
+          {items.map((p, index) => (
+            <ProductCard key={p.id} product={p} priority={index < 2} />
           ))}
         </div>
       )}

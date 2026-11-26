@@ -22,9 +22,12 @@ function adminPassword(): string | null {
 
 function sessionSecret(): string | null {
   const explicit = process.env.ADMIN_SESSION_SECRET?.trim();
-  if (isProd) return explicit && explicit.length >= 32 ? explicit : null;
-  if (explicit && explicit.length >= 16) return explicit;
   const pw = adminPassword();
+  if (isProd) {
+    if (!explicit || explicit.length < 32 || (pw && explicit === pw)) return null;
+    return explicit;
+  }
+  if (explicit && explicit.length >= 16) return explicit;
   if (!pw) return null;
   return createHash("sha256").update(`edna-atelier-session:${pw}`).digest("hex");
 }

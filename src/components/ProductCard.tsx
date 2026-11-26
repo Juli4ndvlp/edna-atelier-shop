@@ -1,48 +1,67 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import type { ProductWithCategory } from "@/lib/catalog";
 import { discountPercent, formatPrice } from "@/lib/format";
 
-export function ProductCard({ product }: { product: ProductWithCategory }) {
+export function ProductCard({
+  product,
+  priority = false,
+}: {
+  product: ProductWithCategory;
+  priority?: boolean;
+}) {
+  const [hoverEngaged, setHoverEngaged] = useState(false);
   const discount = discountPercent(product.price, product.compareAtPrice);
   const soldOut = product.stock === 0;
+  const secondaryImage = product.images[1];
 
   return (
     <Link
       href={`/producto/${product.slug}`}
-      className="glass-card glass-interactive group block rounded-2xl p-2.5 sm:p-3"
+      onMouseEnter={() => {
+        if (secondaryImage) setHoverEngaged(true);
+      }}
+      onFocus={() => {
+        if (secondaryImage) setHoverEngaged(true);
+      }}
+      className="glass-card glass-interactive group block rounded-xl p-2.5 sm:p-3"
     >
-      <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-sand">
+      <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-surface-muted">
         <Image
           src={product.images[0]}
           alt={`${product.name} · EDNA ATELIER Bogotá`}
           fill
+          priority={priority}
+          fetchPriority={priority ? "high" : undefined}
           sizes="(max-width: 640px) 46vw, (max-width: 1024px) 31vw, 24vw"
           className="object-cover transition duration-500 group-hover:scale-105"
         />
-        {product.images[1] && (
+        {secondaryImage && hoverEngaged && (
           <Image
-            src={product.images[1]}
+            src={secondaryImage}
             alt=""
             fill
             sizes="(max-width: 1024px) 31vw, 24vw"
-            className="hidden object-cover opacity-0 transition duration-500 group-hover:opacity-100 md:block"
+            className="hidden object-cover opacity-0 transition duration-500 group-hover:opacity-100 group-focus-visible:opacity-100 md:block"
           />
         )}
         <div className="absolute left-2.5 top-2.5 flex flex-col gap-1.5">
           {product.isNew && (
-            <span className="rounded-full border border-ink/20 bg-volt px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink backdrop-blur-md">
+            <span className="rounded-md border border-ink bg-volt px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink shadow-xs">
               Nuevo
             </span>
           )}
           {discount > 0 && (
-            <span className="rounded-full border border-white/30 bg-ink/95 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md">
+            <span className="rounded-md border border-white/30 bg-ink/95 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md">
               Remate -{discount}%
             </span>
           )}
         </div>
         {soldOut && (
-          <div className="absolute inset-0 grid place-items-center bg-cream/85 text-sm font-semibold text-ink backdrop-blur-md">
+          <div className="absolute inset-0 grid place-items-center bg-white/85 text-sm font-semibold text-ink backdrop-blur-md">
             Agotado
           </div>
         )}
@@ -66,7 +85,7 @@ export function ProductCard({ product }: { product: ProductWithCategory }) {
             <span
               key={c.name}
               title={c.name}
-              className="h-3.5 w-3.5 rounded-full border border-ink/35"
+              className="h-3.5 w-3.5 rounded-full border border-ink/55"
               style={{ background: c.hex }}
             />
           ))}

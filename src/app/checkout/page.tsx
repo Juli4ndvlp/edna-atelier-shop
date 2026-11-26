@@ -4,9 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { z } from "zod";
 import { cartActions, useCart } from "@/lib/cart";
 import { calcShipping, formatPrice } from "@/lib/format";
+import { getOrCreateOrderIdempotencyKey, markOrderRedirect } from "@/lib/order-idempotency";
 import { trackGa4Event } from "@/lib/analytics";
 
 const PAYMENTS = [
@@ -20,12 +20,48 @@ const PAYMENTS = [
   { id: "tarjeta", label: "Tarjeta (simulado)", hint: "Solo demostración sin cobro real" },
 ] as const;
 
-const quoteSchema = z.object({
-  subtotal: z.number().int().nonnegative(),
-  shipping: z.number().int().nonnegative(),
-  total: z.number().int().nonnegative(),
-  items: z.array(z.object({ productId: z.number().int().positive(), price: z.number().int().nonnegative() })),
-});
+type ServerQuote = {
+  subtotal: number;
+  shipping: number;
+  total: number;
+  items: { productId: number; price: number }[];
+};
+
+function parseServerQuote(value: unknown): ServerQuote | null {
+  if (typeof value !== "object" || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (
+    typeof v.subtotal !== "number" ||
+    !Number.isInteger(v.subtotal) ||
+    v.subtotal < 0 ||
+    typeof v.shipping !== "number" ||
+    !Number.isInteger(v.shipping) ||
+    v.shipping < 0 ||
+    typeof v.total !== "number" ||
+    !Number.isInteger(v.total) ||
+    v.total < 0 ||
+    !Array.isArray(v.items)
+  ) {
+    return null;
+  }
+  const parsedItems: { productId: number; price: number }[] = [];
+  for (const item of v.items) {
+    if (typeof item !== "object" || item === null) return null;
+    const row = item as Record<string, unknown>;
+    if (
+      typeof row.productId !== "number" ||
+      !Number.isInteger(row.productId) ||
+      row.productId <= 0 ||
+      typeof row.price !== "number" ||
+      !Number.isInteger(row.price) ||
+      row.price < 0
+    ) {
+      return null;
+    }
+    parsedItems.push({ productId: row.productId, price: row.price });
+  }
+  return { subtotal: v.subtotal, shipping: v.shipping, total: v.total, items: parsedItems };
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -35,8 +71,7 @@ export default function CheckoutPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [quote, setQuote] = useState<z.infer<typeof quoteSchema> & { cartSignature: string } | null>(null);
-  const idempotencyKey = useRef<string | null>(null);
+  const [quote, setQuote] = useState<(ServerQuote & { cartSignature: string }) | null>(null);
   const cartSignature = JSON.stringify(
     items.map(({ productId, size, color, quantity }) => ({ productId, size, color, quantity })),
   );
@@ -55,7 +90,7 @@ export default function CheckoutPage() {
   if (items.length === 0 && !loading) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">
-        <div className="glass-surface rounded-3xl p-10">
+        <div className="glass-surface rounded-xl p-10">
           <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">
             No hay nada que pedir
           </h1>
@@ -74,9 +109,6 @@ export default function CheckoutPage() {
       setError("Debes aceptar la Política de Privacidad y los Términos y Condiciones.");
       return;
     }
-    setError("");
-    setLoading(true);
-    idempotencyKey.current ??= crypto.randomUUID();
     const fd = new FormData(e.currentTarget);
     const customer = {
       customerName: String(fd.get("customerName") ?? ""),
@@ -88,6 +120,17 @@ export default function CheckoutPage() {
       notes: String(fd.get("notes") ?? ""),
       paymentMethod: payment,
     };
+
+    // La clave también depende de entrega y método de pago: cambiar cualquiera
+    // debe crear un pedido nuevo, no recuperar uno con datos distintos.
+    const submitSignature = JSON.stringify({ cart: cartSignature, payment, customer });
+    const idempotencyKey = getOrCreateOrderIdempotencyKey(submitSignature);
+    if (!idempotencyKey) {
+      setError("No pudimos preparar un envío seguro. Recarga la página e inténtalo de nuevo.");
+      return;
+    }
+    setError("");
+    setLoading(true);
 
     const body = {
       ...customer,
@@ -105,16 +148,16 @@ export default function CheckoutPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey.current,
+          "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const parsedQuote = quoteSchema.safeParse(data.quote);
-        if (parsedQuote.success) {
-          setQuote({ ...parsedQuote.data, cartSignature });
+        const parsedQuote = parseServerQuote(data.quote);
+        if (parsedQuote) {
+          setQuote({ ...parsedQuote, cartSignature });
           setError(data.error ?? "El precio cambió. Revisa el nuevo total y confirma otra vez.");
           setLoading(false);
           return;
@@ -126,6 +169,7 @@ export default function CheckoutPage() {
         throw new Error("El pedido se recibió, pero no pudimos validar su código. Contacta al taller antes de volver a enviarlo.");
       }
 
+      markOrderRedirect(submitSignature, data.code);
       cartActions.clear();
       router.push(`/pedido/${data.code}`);
     } catch (err) {
@@ -140,7 +184,7 @@ export default function CheckoutPage() {
 
       <form onSubmit={onSubmit} className="mt-8 grid gap-8 lg:grid-cols-[1fr_390px] lg:gap-10">
         <div className="space-y-8">
-          <section className="glass-card rounded-3xl p-5 sm:p-6">
+          <section className="glass-card rounded-xl p-5 sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-ink">Datos de entrega (Bogotá y Colombia)</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="sm:col-span-2">
@@ -203,7 +247,7 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          <fieldset className="glass-card rounded-3xl p-5 sm:p-6">
+          <fieldset className="glass-card rounded-xl p-5 sm:p-6">
             <legend className="mb-4 text-lg font-semibold text-ink">
               Método de pedido y pago
             </legend>
@@ -211,10 +255,10 @@ export default function CheckoutPage() {
               {PAYMENTS.map((p) => (
                 <label
                   key={p.id}
-                  className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
                     payment === p.id
-                      ? "border-volt bg-white/90 shadow-sm"
-                      : "border-white/75 bg-white/55 hover:border-volt/50"
+                      ? "border-ink bg-white ring-1 ring-ink"
+                      : "border-ink/20 bg-white/65 hover:border-ink/60"
                   }`}
                 >
                   <input
@@ -223,7 +267,7 @@ export default function CheckoutPage() {
                     value={p.id}
                     checked={payment === p.id}
                     onChange={() => setPayment(p.id)}
-                    className="mt-1 h-4 w-4 accent-[#d8ff3e]"
+                    className="mt-1 h-4 w-4 accent-clay-dark"
                   />
                   <span>
                     <span className="block font-medium text-ink">{p.label}</span>
@@ -235,12 +279,12 @@ export default function CheckoutPage() {
           </fieldset>
         </div>
 
-        <aside className="glass-surface h-fit rounded-3xl p-6">
+        <aside className="glass-surface h-fit rounded-xl p-6">
           <h2 className="text-lg font-semibold text-ink">Tu pedido</h2>
           <ul className="mt-4 space-y-3">
             {items.map((i) => (
               <li key={`${i.productId}-${i.size}-${i.color}`} className="flex gap-3 text-sm">
-                <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-sand">
+                <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-surface-muted">
                   <Image src={i.image} alt="" fill sizes="48px" className="object-cover" />
                 </div>
                 <div className="flex-1">
@@ -259,7 +303,7 @@ export default function CheckoutPage() {
             ))}
           </ul>
 
-          <dl className="mt-5 space-y-2 border-t border-white/60 pt-4 text-sm text-ink">
+          <dl className="mt-5 space-y-2 border-t border-ink/10 pt-4 text-sm text-ink">
             <div className="flex justify-between">
               <dt className="text-ink/80">Subtotal</dt>
               <dd>{formatPrice(displayedSubtotal)}</dd>
@@ -274,28 +318,33 @@ export default function CheckoutPage() {
             </div>
           </dl>
 
-          <label className="mt-4 flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-ink/80">
+          <div className="mt-4 flex items-start gap-2.5 text-xs leading-relaxed text-ink/85">
             <input
+              id="checkout-terms-consent"
               type="checkbox"
               checked={acceptedTerms}
               onChange={(e) => setAcceptedTerms(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#d8ff3e]"
+              className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-clay-dark"
             />
             <span>
-              He leído y acepto la{" "}
-              <Link href="/privacidad" className="font-semibold underline underline-offset-4">
+              <label htmlFor="checkout-terms-consent" className="cursor-pointer">
+                He leído y acepto la{" "}
+              </label>
+              <Link href="/privacidad" className="inline-block py-1 font-semibold underline underline-offset-4">
                 Política de Privacidad
               </Link>{" "}
-              y los{" "}
-              <Link href="/terminos" className="font-semibold underline underline-offset-4">
+              <label htmlFor="checkout-terms-consent" className="cursor-pointer">
+                y los{" "}
+              </label>
+              <Link href="/terminos" className="inline-block py-1 font-semibold underline underline-offset-4">
                 Términos y Condiciones
               </Link>
               .
             </span>
-          </label>
+          </div>
 
           {error && (
-            <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+            <p role="alert" className="mt-4 rounded-lg border border-red-800/30 bg-red-50 p-3 text-sm font-medium text-red-900">
               {error}
             </p>
           )}

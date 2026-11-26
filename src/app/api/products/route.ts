@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { searchProducts } from "@/lib/catalog";
+import { normalizeCategorySlug } from "@/lib/catalog-params";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     }
 
     const items = await searchProducts({
-      category: parsed.data.categoria,
+      category: normalizeCategorySlug(parsed.data.categoria),
       gender: parsed.data.genero,
       q: parsed.data.q,
       sort: parsed.data.orden,

@@ -1,38 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useAnalyticsConsent } from "@/lib/consent";
 
-const CONSENT_STORAGE_KEY = "edna-atelier-cookie-consent-v1";
 const GOOGLE_SCRIPT_ID = "edna-ga4-script";
 
 type Props = {
   measurementId: string;
   nonce: string | null;
 };
-
-type ConsentValue = {
-  analytics: boolean;
-};
-
-function readConsent(): ConsentValue | null {
-  try {
-    const value: unknown = JSON.parse(
-      window.localStorage.getItem(CONSENT_STORAGE_KEY) ?? "null",
-    );
-    if (
-      typeof value === "object" &&
-      value !== null &&
-      "analytics" in value &&
-      typeof value.analytics === "boolean"
-    ) {
-      return { analytics: value.analytics };
-    }
-  } catch {
-    // Storage may be disabled or contain malformed data. Treat it as no consent.
-  }
-  return null;
-}
 
 function isExcludedPath(pathname: string): boolean {
   return (
@@ -45,39 +22,36 @@ function isExcludedPath(pathname: string): boolean {
   );
 }
 
+function expireCookie(name: string, domain?: string) {
+  const attributes = [`${name}=`, "Max-Age=0", "Path=/", "SameSite=Lax"];
+  if (window.location.protocol === "https:") attributes.push("Secure");
+  if (domain) attributes.push(`Domain=${domain}`);
+  document.cookie = attributes.join("; ");
+}
+
 function removeGoogleCookies() {
   const cookieNames = document.cookie
     .split(";")
     .map((cookie) => cookie.trim().split("=")[0])
     .filter((name) => name === "_ga" || name.startsWith("_ga_"));
+  if (cookieNames.length === 0) return;
+
+  const labels = window.location.hostname.split(".").filter(Boolean);
+  const domains = labels
+    .slice(1)
+    .map((_, index) => labels.slice(index + 1).join("."))
+    .filter((domain) => domain.includes("."));
 
   for (const name of cookieNames) {
-    document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax`;
-    if (window.location.protocol === "https:") {
-      document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
-    }
+    // GA4 puede crear cookies con y sin Domain explícito; hay que expirar ambas.
+    expireCookie(name);
+    for (const domain of domains) expireCookie(name, domain);
   }
 }
 
 export function GoogleAnalytics({ measurementId, nonce }: Props) {
   const pathname = usePathname();
-  const [analyticsAllowed, setAnalyticsAllowed] = useState(false);
-
-  useEffect(() => {
-    const updateConsent = () => setAnalyticsAllowed(readConsent()?.analytics === true);
-    updateConsent();
-
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === CONSENT_STORAGE_KEY || event.key === null) updateConsent();
-    };
-
-    window.addEventListener("edna:consent-changed", updateConsent);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("edna:consent-changed", updateConsent);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+  const analyticsAllowed = useAnalyticsConsent();
 
   useEffect(() => {
     if (!analyticsAllowed) {

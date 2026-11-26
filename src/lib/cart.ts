@@ -1,25 +1,53 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
-import { z } from "zod";
 
-const cartItemSchema = z.object({
-  productId: z.number().int().positive(),
-  slug: z.string().min(1).max(160),
-  name: z.string().min(1).max(200),
-  image: z.string().max(2000),
-  price: z.number().int().nonnegative(),
-  size: z.string().min(1).max(20),
-  color: z.string().min(1).max(80),
-  quantity: z.number().int().min(1).max(20),
-});
-
-const cartSchema = z.array(cartItemSchema).max(40);
-export type CartItem = z.infer<typeof cartItemSchema>;
+export type CartItem = {
+  productId: number;
+  slug: string;
+  name: string;
+  image: string;
+  price: number;
+  size: string;
+  color: string;
+  quantity: number;
+};
 
 const KEY = "edna-atelier-cart-v1";
 const listeners = new Set<() => void>();
 const EMPTY = "[]";
+
+function isCartItem(value: unknown): value is CartItem {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.productId === "number" &&
+    Number.isInteger(v.productId) &&
+    v.productId > 0 &&
+    typeof v.slug === "string" &&
+    v.slug.length > 0 &&
+    v.slug.length <= 120 &&
+    typeof v.name === "string" &&
+    v.name.length > 0 &&
+    v.name.length <= 160 &&
+    typeof v.image === "string" &&
+    v.image.length > 0 &&
+    v.image.length <= 500 &&
+    typeof v.price === "number" &&
+    Number.isInteger(v.price) &&
+    v.price >= 0 &&
+    typeof v.size === "string" &&
+    v.size.length > 0 &&
+    v.size.length <= 10 &&
+    typeof v.color === "string" &&
+    v.color.length > 0 &&
+    v.color.length <= 40 &&
+    typeof v.quantity === "number" &&
+    Number.isInteger(v.quantity) &&
+    v.quantity >= 1 &&
+    v.quantity <= 20
+  );
+}
 
 function read(): string {
   try {
@@ -52,8 +80,9 @@ function subscribe(cb: () => void) {
 
 function parse(raw: string): CartItem[] {
   try {
-    const result = cartSchema.safeParse(JSON.parse(raw));
-    return result.success ? result.data : [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isCartItem).slice(0, 40);
   } catch {
     return [];
   }
@@ -64,16 +93,14 @@ const sameLine = (a: CartItem, b: Pick<CartItem, "productId" | "size" | "color">
 
 export const cartActions = {
   add(item: CartItem) {
-    const validItem = cartItemSchema.safeParse(item);
-    if (!validItem.success) return;
+    if (!isCartItem(item)) return;
     const items = parse(read());
-    const existing = items.find((i) => sameLine(i, validItem.data));
-    if (existing) existing.quantity = Math.min(20, existing.quantity + validItem.data.quantity);
-    else if (items.length < 40) items.push(validItem.data);
+    const existing = items.find((i) => sameLine(i, item));
+    if (existing) existing.quantity = Math.min(20, existing.quantity + item.quantity);
+    else if (items.length < 40) items.push({ ...item, quantity: Math.min(20, item.quantity) });
     write(items);
   },
   setQuantity(line: Pick<CartItem, "productId" | "size" | "color">, quantity: number) {
-    if (!Number.isInteger(quantity)) return;
     const items = parse(read())
       .map((i) => (sameLine(i, line) ? { ...i, quantity: Math.min(20, quantity) } : i))
       .filter((i) => i.quantity > 0);

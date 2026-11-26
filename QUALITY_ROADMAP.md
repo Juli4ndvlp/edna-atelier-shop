@@ -36,24 +36,25 @@ menos 32 caracteres.
 
 ### Pedidos, stock y base de datos
 
-- [ ] **DB-01 — Destino confirmado:** revisar `DATABASE_URL` de producción y aplicar, en ese orden, `drizzle/0001_order_safety.sql` y `drizzle/0002_reservation_expiry.sql`. No ejecutar `drizzle-kit push` a ciegas.
+- [ ] **DB-01 — Destino confirmado:** el proyecto Supabase Free aún no se ha creado. En una base nueva basta `drizzle-kit push` con la conexión directa; `0001` y `0002` solo aplican a bases preexistentes. No ejecutar nada contra una base sin confirmar antes el destino.
 - [ ] **DB-02 — Validar datos existentes:** revisar órdenes abiertas antes de la migración. `0002` da a las órdenes `pendiente`/`whatsapp` existentes al menos 24 horas desde que se aplica.
 - [ ] **ORD-01 — Regla comercial:** confirmar que 24 horas es el plazo correcto y definir si se avisa al cliente antes/después de cancelar por expiración.
 - [ ] **ORD-02 — Pagos:** los métodos tarjeta/transferencia/contraentrega no implican una pasarela integrada. Decidir qué métodos se ofrecerán realmente y probar sus flujos.
-- [ ] **ORD-03 — Devoluciones/cancelación:** confirmar la regla de reponer stock al cancelar pedidos ya pagados y definir el proceso/estado de devolución; probar que nunca reponga unidades dos veces.
+- [ ] **ORD-03 — Devoluciones/cancelación:** regla aplicada en código: solo repone stock quien tuvo reserva (`reservationExpiresAt`), `pagado → cancelado` quedó prohibido y `pagado → devuelto` permite la reposición con auditoría. Falta probar en Postgres no productivo que nunca reponga dos veces.
 - [ ] **TEST-DB — Integración:** probar con Postgres no productivo idempotencia concurrente, compras simultáneas del último artículo, cancelación y liberación por cron.
-- [x] **DB-03 — Herramienta segura:** `drizzle-kit` se actualizó a `0.31.11` porque la versión `0.18.1` no ofrecía `push` para Postgres; `drizzle.config.ts` ahora exige `DATABASE_URL` y ya no apunta a `localhost` con credenciales fijas. No se ejecutó ningún comando contra una base real.
+- [x] **DB-03 — Herramienta segura:** `drizzle-kit` se actualizó a `0.31.11` porque la versión `0.18.1` no ofrecía `push` para Postgres; `drizzle.config.ts` exige una URL válida y rechaza el pooler `:6543` para migraciones. No se ejecutó ningún comando contra una base real.
+- [ ] **CAT-01 — Catálogo real:** `src/db/real-catalog.ts` define 12 prendas (5 pijamas, 3 hoodies, 2 chaquetas y 2 sudaderas en `buzos`) con fotos de `public/collections` y `npm run seed:real-catalog` las carga de forma idempotente. Pendiente ejecutarlo contra la base nueva y revisar precios/stock en `/admin`; tres prendas aún usan foto provisional.
 
 ### Despliegue y seguridad
 
 - [ ] **OPS-05 — Readiness y configuración de proxy:** el código devuelve `503` en producción si falta `DATABASE_URL` o falla la consulta de salud; las rutas con rate limit fallan de forma cerrada si falta una IP válida desde la cabecera confiable configurada y no usan la cubeta `unknown` en producción. Pendiente validar en hosting la respuesta de salud y la cabecera real del proxy. No marcar como verificado hasta obtener evidencia.
 
-- [ ] **OPS-04 — WhatsApp de negocio:** el negocio confirmó el número el 2026-11-25 (10 dígitos, Colombia). Falta cargarlo únicamente como `NEXT_PUBLIC_WHATSAPP_NUMBER` en Netlify y validar que no se use el destino demo `573000000000`; no se copiará de `.env.local` ni se guardará en el repo.
+- [x] **OPS-04 — WhatsApp de negocio:** el número real (3153840957) está configurado solo en Netlify y verificado en el HTML desplegado (`wa.me/3153840957`); el destino demo no aparece en enlaces. No se copió de `.env.local` ni se guardó en el repo.
 
 - [x] **SEC-03 — Rate limit de newsletter:** `POST /api/newsletter` ahora espera `checkRateLimit`; prueba HTTP local confirmó `400` en las primeras 10 solicitudes inválidas y `429` en la 11.ª.
 - [x] **REL-03 — Build sin variables locales:** al simular un entorno Netlify sin `.env.local`, el build fallaba porque `db` podía ser `null` en `src/lib/catalog.ts`; se añadió una verificación explícita y el build con `NODE_ENV=production` y sin `DATABASE_URL` vuelve a pasar.
-- [x] **REL-04 — Verificación previa al deploy:** el 2026-11-25 pasaron `npm run typecheck`, `npm run lint`, `npm test` (8/8) y `npm run build` con `NODE_ENV=production`, `DATABASE_URL` vacía y `NEXT_PUBLIC_SITE_URL=https://prueba.netlify.app`. El lint había detectado el bundle temporal generado por las pruebas; `tests/.tmp/**` quedó excluido de ESLint. Typecheck y build no se ejecutaron en paralelo porque competen por `.next/types`.
-- [ ] **OPS-01 — Hosting:** Netlify está elegido. Falta confirmar dominio/canonical definitivo y validar en producción la configuración del proxy y sus cabeceras.
+- [x] **REL-04 — Verificación previa al deploy:** pasan `npm run typecheck`, `npm run lint`, `npm test` (16/16) y `npm run build` con `NODE_ENV=production` y sin `DATABASE_URL`. Los bundles temporales de pruebas están excluidos de ESLint mediante `tests/.tmp/**` y `scripts/.tmp/**`. Astro preview también pasa `check` y `build` sin errores.
+- [ ] **OPS-01 — Hosting:** Netlify desplegado en `https://edna-atelier-shop.netlify.app`; canonical, HTTPS, HSTS y CSP con nonce ya verificados en vivo. Falta la validación final del proxy tras cargar la base y las variables de producción.
 - [ ] **OPS-03 — Variables de producción:** confirmar catálogo real y `DATABASE_URL`; crear contraseñas/secrets únicos por entorno, validar `ADMIN_SESSION_SECRET` independiente y no usar valores de `.env.example`.
 - [ ] **OPS-02 — Cron:** el workflow `.github/workflows/expire-orders.yml` está en la rama local. Confirmar que está en la rama por defecto de GitHub, configurar `COBIJO_CRON_URL` y `COBIJO_CRON_SECRET` como secrets del repositorio, y verificar una ejecución real cada 15 minutos, incluidos errores y alertas. La URL debe ser HTTPS y apuntar exactamente a `/api/cron/expire-orders`; el workflow valida también la respuesta JSON `ok: true`. No marcar completo hasta comprobar una ejecución del workflow.
 - [ ] **SEC-01 — CSP real:** revisar reportes/consola en el dominio desplegado; validar nonce en rutas dinámicas, imágenes, enlaces externos y posibles integraciones futuras. Habilitar HSTS con `includeSubDomains`/`preload` solo cuando todos los subdominios estén listos para HTTPS.

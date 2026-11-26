@@ -65,6 +65,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Nonce CSP requires request-time rendering so Next can nonce its inline bootstrap scripts.
   const requestHeaders = await headers();
   const nonce = requestHeaders.get("x-nonce");
+  const isAdminRoute = requestHeaders.get("x-pathname")?.startsWith("/admin") ?? false;
   const rawMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "";
   const measurementId = /^G-[A-Z0-9]+$/.test(rawMeasurementId) ? rawMeasurementId : "";
 
@@ -77,16 +78,20 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         >
           Saltar al contenido
         </a>
-        <Header />
-        <main id="contenido" className="flex-1 pt-20 sm:pt-24">
+        {!isAdminRoute && <Header />}
+        <main id="contenido" className={isAdminRoute ? "flex-1" : "flex-1 pt-20 sm:pt-24"}>
           {children}
         </main>
-        <Footer />
-        <WhatsAppButton />
-        <CookieBanner />
-        {measurementId ? (
-          <GoogleAnalytics measurementId={measurementId} nonce={nonce} />
-        ) : null}
+        {!isAdminRoute && (
+          <>
+            <Footer />
+            <WhatsAppButton />
+            <CookieBanner />
+            {measurementId ? (
+              <GoogleAnalytics measurementId={measurementId} nonce={nonce} />
+            ) : null}
+          </>
+        )}
       </body>
     </html>
   );

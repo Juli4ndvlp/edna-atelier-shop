@@ -22,14 +22,13 @@ function initDb(): NodePgDatabase | null {
     new Pool({
       connectionString: databaseUrl,
       connectionTimeoutMillis: 4000,
+      max: 5,
     });
 
   const instance = drizzle(pool);
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForDb.__arenaNextJsPostgresqlPool = pool;
-    globalForDb.__arenaNextJsPostgresqlDb = instance;
-  }
+  globalForDb.__arenaNextJsPostgresqlPool = pool;
+  globalForDb.__arenaNextJsPostgresqlDb = instance;
 
   return instance;
 }

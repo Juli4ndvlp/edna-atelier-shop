@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { revalidateTag } from "next/cache";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -56,6 +57,39 @@ export async function POST(request: Request) {
   if (!ip) {
     return Response.json({ error: "La IP del cliente no está configurada en el proxy" }, { status: 503 });
   }
+  const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+  if (
+    !idempotencyKey ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      idempotencyKey,
+    )
+  ) {
+    return Response.json({ error: "Clave de pedido no válida. Vuelve a intentarlo." }, { status: 400 });
+  }
+
+  if (!db) {
+    return Response.json(
+      { error: "No podemos registrar el pedido en este momento. Inténtalo más tarde." },
+      { status: 503 },
+    );
+  }
+
+  const database = db;
+
+  // Un reintento con la misma clave debe devolver la orden existente aunque el
+  // cliente haya agotado su cuota por una respuesta perdida.
+  try {
+    const [replayed] = await database
+      .select({ code: orders.code })
+      .from(orders)
+      .where(eq(orders.idempotencyKey, idempotencyKey))
+      .limit(1);
+    if (replayed) return Response.json({ ok: true, code: replayed.code, replayed: true });
+  } catch (err) {
+    console.error("order replay lookup failed", err);
+    return Response.json({ error: "No se pudo verificar el pedido" }, { status: 503 });
+  }
+
   const rateLimit = await checkRateLimit(`orders:${ip}`, 15, 1000 * 60 * 10);
   if (rateLimit === "unavailable") {
     return Response.json({ error: "El servicio no está disponible temporalmente" }, { status: 503 });
@@ -83,137 +117,112 @@ export async function POST(request: Request) {
     );
   }
   const data = parsed.data;
-  const idempotencyKey = request.headers.get("idempotency-key")?.trim();
-  if (
-    !idempotencyKey ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      idempotencyKey,
-    )
-  ) {
-    return Response.json({ error: "Clave de pedido no válida. Vuelve a intentarlo." }, { status: 400 });
-  }
-
-  if (!db) {
-    return Response.json(
-      { error: "No podemos registrar el pedido en este momento. Inténtalo más tarde." },
-      { status: 503 },
-    );
-  }
-
-  const database = db;
 
   try {
-    const [replayed] = await database
-      .select({ code: orders.code })
-      .from(orders)
-      .where(eq(orders.idempotencyKey, idempotencyKey))
-      .limit(1);
-    if (replayed) return Response.json({ ok: true, code: replayed.code, replayed: true });
-
-    let code = "";
-    let orderId: number | undefined;
+    let createdOrder: { id: number; code: string } | undefined;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      code = `EA-${randomBytes(6).toString("hex").toUpperCase()}`;
+      const code = `EA-${randomBytes(6).toString("hex").toUpperCase()}`;
       try {
-        orderId = await database.transaction(async (tx) => {
-      const ids = [...new Set(data.items.map((i) => i.productId))];
-      const rows = await tx
-        .select()
-        .from(products)
-        .where(inArray(products.id, ids))
-        .orderBy(asc(products.id))
-        .for("update");
-      const byId = new Map(rows.map((p) => [p.id, p]));
+        createdOrder = await database.transaction(async (tx) => {
+          const ids = [...new Set(data.items.map((i) => i.productId))];
+          const rows = await tx
+            .select()
+            .from(products)
+            .where(inArray(products.id, ids))
+            .orderBy(asc(products.id))
+            .for("update");
+          const byId = new Map(rows.map((p) => [p.id, p]));
 
-      const qtyByProduct = new Map<number, number>();
-      for (const item of data.items) {
-        const nextQty = (qtyByProduct.get(item.productId) ?? 0) + item.quantity;
-        if (nextQty > 40) {
-          throw new OrderError("Para más de 40 unidades por prenda cotiza por WhatsApp mayorista");
-        }
-        qtyByProduct.set(item.productId, nextQty);
-      }
+          const qtyByProduct = new Map<number, number>();
+          for (const item of data.items) {
+            const nextQty = (qtyByProduct.get(item.productId) ?? 0) + item.quantity;
+            if (nextQty > 40) {
+              throw new OrderError("Para más de 40 unidades por prenda cotiza por WhatsApp mayorista");
+            }
+            qtyByProduct.set(item.productId, nextQty);
+          }
 
-      const lines = data.items.map((item) => {
-        const p = byId.get(item.productId);
-        if (!p) throw new OrderError("Un producto del carrito ya no está disponible");
-        if (!p.sizes.includes(item.size)) throw new OrderError(`Talla no válida para ${p.name}`);
-        if (!p.colors.some((c) => c.name === item.color)) {
-          throw new OrderError(`Color no válido para ${p.name}`);
-        }
-        return { p, item };
-      });
+          const lines = data.items.map((item) => {
+            const p = byId.get(item.productId);
+            if (!p) throw new OrderError("Un producto del carrito ya no está disponible");
+            if (!p.sizes.includes(item.size)) throw new OrderError(`Talla no válida para ${p.name}`);
+            if (!p.colors.some((c) => c.name === item.color)) {
+              throw new OrderError(`Color no válido para ${p.name}`);
+            }
+            return { p, item };
+          });
 
-      for (const [pid, qty] of qtyByProduct) {
-        const p = byId.get(pid)!;
-        if (p.stock < qty) {
-          throw new OrderError(
-            p.stock === 0
-              ? `${p.name} está agotado`
-              : `Solo quedan ${p.stock} unidades de ${p.name}`,
+          for (const [pid, qty] of qtyByProduct) {
+            const p = byId.get(pid)!;
+            if (p.stock < qty) {
+              throw new OrderError(
+                p.stock === 0
+                  ? `${p.name} está agotado`
+                  : `Solo quedan ${p.stock} unidades de ${p.name}`,
+              );
+            }
+          }
+
+          const subtotal = lines.reduce((n, { p, item }) => n + p.price * item.quantity, 0);
+          const shipping = calcShipping(subtotal);
+          const total = subtotal + shipping;
+          if (data.expectedTotal !== undefined && data.expectedTotal !== total) {
+            throw new OrderError(
+              "El precio o el envío cambió. Revisa el nuevo total y confirma otra vez.",
+              {
+                subtotal,
+                shipping,
+                total,
+                items: lines.map(({ p }) => ({ productId: p.id, price: p.price })),
+              },
+            );
+          }
+
+          const [order] = await tx
+            .insert(orders)
+            .values({
+              code,
+              idempotencyKey,
+              customerName: data.customerName,
+              email: data.email,
+              phone: data.phone,
+              address: data.address,
+              city: data.city,
+              postalCode: data.postalCode,
+              notes: data.notes,
+              paymentMethod: data.paymentMethod,
+              status: data.paymentMethod === "whatsapp" ? "whatsapp" : "pendiente",
+              reservationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              subtotal,
+              shipping,
+              total,
+            })
+            .returning({ id: orders.id, code: orders.code });
+
+          await tx.insert(orderItems).values(
+            lines.map(({ p, item }) => ({
+              orderId: order.id,
+              productId: p.id,
+              name: p.name,
+              image: p.images[0] ?? "",
+              size: item.size,
+              color: item.color,
+              price: p.price,
+              quantity: item.quantity,
+            })),
           );
-        }
-      }
 
-      const subtotal = lines.reduce((n, { p, item }) => n + p.price * item.quantity, 0);
-      const shipping = calcShipping(subtotal);
-      const total = subtotal + shipping;
-      if (data.expectedTotal !== undefined && data.expectedTotal !== total) {
-        throw new OrderError(
-          "El precio o el envío cambió. Revisa el nuevo total y confirma otra vez.",
-          {
-            subtotal,
-            shipping,
-            total,
-            items: lines.map(({ p }) => ({ productId: p.id, price: p.price })),
-          },
-        );
-      }
+          const sortedUpdates = [...qtyByProduct.entries()].sort((a, b) => a[0] - b[0]);
+          for (const [pid, qty] of sortedUpdates) {
+            const res = await tx
+              .update(products)
+              .set({ stock: sql`${products.stock} - ${qty}` })
+              .where(sql`${products.id} = ${pid} and ${products.stock} >= ${qty}`)
+              .returning({ id: products.id });
+            if (res.length === 0) throw new OrderError("El stock cambió, inténtalo de nuevo");
+          }
 
-      const [order] = await tx
-        .insert(orders)
-        .values({
-          code,
-          idempotencyKey,
-          customerName: data.customerName,
-          email: data.email,
-          phone: data.phone,
-          address: data.address,
-          city: data.city,
-          postalCode: data.postalCode,
-          notes: data.notes,
-          paymentMethod: data.paymentMethod,
-          status: data.paymentMethod === "whatsapp" ? "whatsapp" : "pendiente",
-          reservationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          subtotal,
-          shipping,
-          total,
-        })
-        .returning({ id: orders.id });
-
-      await tx.insert(orderItems).values(
-        lines.map(({ p, item }) => ({
-          orderId: order.id,
-          productId: p.id,
-          name: p.name,
-          image: p.images[0] ?? "",
-          size: item.size,
-          color: item.color,
-          price: p.price,
-          quantity: item.quantity,
-        })),
-      );
-
-      for (const [pid, qty] of qtyByProduct) {
-        const res = await tx
-          .update(products)
-          .set({ stock: sql`${products.stock} - ${qty}` })
-          .where(sql`${products.id} = ${pid} and ${products.stock} >= ${qty}`)
-          .returning({ id: products.id });
-        if (res.length === 0) throw new OrderError("El stock cambió, inténtalo de nuevo");
-      }
-
-          return order.id;
+          return order;
         });
         break;
       } catch (error) {
@@ -229,13 +238,10 @@ export async function POST(request: Request) {
         throw error;
       }
     }
-    if (orderId === undefined) throw new Error("Could not allocate an order ID");
+    if (!createdOrder) throw new Error("Could not allocate an order ID");
 
-    const [created] = await database
-      .select({ code: orders.code })
-      .from(orders)
-      .where(eq(orders.id, orderId));
-    return Response.json({ ok: true, code: created.code }, { status: 201 });
+    revalidateTag("catalog", "max");
+    return Response.json({ ok: true, code: createdOrder.code }, { status: 201 });
   } catch (err) {
     if (err instanceof OrderError) {
       if (err.quote) return Response.json({ error: err.message, quote: err.quote }, { status: 409 });

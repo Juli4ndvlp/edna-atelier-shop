@@ -75,9 +75,8 @@ también `apps/marketing-astro`. No requiere cambios de base de datos.
   comprobar que no aparecen solicitudes nuevas; repetir con dos pestañas y
   confirmar que solo una nueva aceptación vuelve a habilitar medición.
 - Inspección de payloads para confirmar ausencia de PII, códigos y mensajes.
-- Desde `C:\Users\Julian\Documents\cobijo`: `npm run typecheck`,
-  `npm run lint` y `npm run build` (Next.js).
-- Desde `C:\Users\Julian\Documents\cobijo\apps\marketing-astro`:
-  `npm run check` y `npm run build` (Astro).
+- Desde la raíz del repositorio: `npm run typecheck`, `npm run lint` y
+  `npm run build` (Next.js).
+- Desde `apps/marketing-astro`: `npm run check` y `npm run build` (Astro).
 - Guardar evidencia con fecha, URL/entorno, commit o `sin commit`, versión de
   herramienta y artefacto de resultados. Probar CSP real antes de producción.

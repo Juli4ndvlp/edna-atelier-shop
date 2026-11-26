@@ -15,7 +15,7 @@ export default function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "64px",
-          background: "linear-gradient(135deg, #090a0a 0%, #20241a 72%, #d8ff3e 170%)",
+          background: "linear-gradient(135deg, #090a0a 0%, #161717 72%, #d8ff3e 170%)",
           color: "#ffffff",
           fontFamily: "Arial Black, sans-serif",
         }}
@@ -27,7 +27,7 @@ export default function OpenGraphImage() {
             justifyContent: "space-between",
           }}
         >
-          <div style={{ fontSize: 44, fontWeight: 900, display: "flex" }}>
+          <div style={{ fontSize: 44, fontWeight: 900, display: "flex", textTransform: "uppercase" }}>
             EDNA <span style={{ color: "#d8ff3e", marginLeft: 12 }}>ATELIER</span>
           </div>
           <div
@@ -35,8 +35,8 @@ export default function OpenGraphImage() {
               fontSize: 22,
               fontFamily: "sans-serif",
               padding: "10px 22px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.16)",
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.14)",
               border: "1px solid rgba(255,255,255,0.35)",
             }}
           >
@@ -45,7 +45,15 @@ export default function OpenGraphImage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 960 }}>
-          <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 1.08 }}>
+          <div
+            style={{
+              fontSize: 62,
+              fontWeight: 900,
+              lineHeight: 1.04,
+              textTransform: "uppercase",
+              letterSpacing: "-0.03em",
+            }}
+          >
             Pijamas, buzos perchados y remates directos de taller.
           </div>
           <div style={{ fontSize: 28, fontFamily: "sans-serif", color: "#d8ff3e" }}>

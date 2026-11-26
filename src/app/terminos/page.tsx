@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <article className="glass-surface space-y-6 rounded-3xl p-6 sm:p-10">
+      <article className="glass-surface space-y-6 rounded-xl p-6 sm:p-10">
         <header>
           <p className="text-xs font-semibold uppercase tracking-widest text-clay-dark">
             Condiciones Comerciales
@@ -66,11 +66,11 @@ export default function TermsPage() {
           </p>
         </section>
 
-        <footer className="flex flex-wrap gap-3 border-t border-white/60 pt-5 text-sm">
-          <Link href="/privacidad" className="font-semibold underline underline-offset-4 hover:text-clay-dark">
+        <footer className="flex flex-wrap gap-3 border-t border-ink/10 pt-5 text-sm">
+          <Link href="/privacidad" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 hover:text-clay-dark">
             Política de Privacidad
           </Link>
-          <Link href="/cookies" className="font-semibold underline underline-offset-4 hover:text-clay-dark">
+          <Link href="/cookies" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 hover:text-clay-dark">
             Política de Cookies
           </Link>
         </footer>

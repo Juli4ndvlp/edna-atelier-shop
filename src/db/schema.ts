@@ -104,3 +104,18 @@ export const rateLimitBuckets = pgTable(
   },
   (t) => [index("rate_limit_buckets_reset_idx").on(t.resetAt)],
 );
+
+export const adminAudit = pgTable(
+  "admin_audit",
+  {
+    id: serial("id").primaryKey(),
+    actor: text("actor").notNull().default("admin"),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("admin_audit_created_idx").on(t.createdAt)],
+);
