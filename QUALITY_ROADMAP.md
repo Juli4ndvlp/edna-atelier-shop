@@ -48,6 +48,7 @@ menos 32 caracteres.
 - [ ] **OPS-04 — WhatsApp de negocio:** confirmar con el negocio el número internacional real y configurarlo en `NEXT_PUBLIC_WHATSAPP_NUMBER` en producción. Validar 10–15 dígitos y rechazar el número demo `573000000000`; si falta o es inválido, no debe haber CTA a un destino de muestra. La confirmación del número queda pendiente de despliegue; no inferirlo ni copiarlo de `.env.local`.
 
 - [x] **SEC-03 — Rate limit de newsletter:** `POST /api/newsletter` ahora espera `checkRateLimit`; prueba HTTP local confirmó `400` en las primeras 10 solicitudes inválidas y `429` en la 11.ª.
+- [x] **REL-03 — Build sin variables locales:** al simular un entorno Netlify sin `.env.local`, el build fallaba porque `db` podía ser `null` en `src/lib/catalog.ts`; se añadió una verificación explícita y el build con `NODE_ENV=production` y sin `DATABASE_URL` vuelve a pasar.
 - [ ] **OPS-01 — Hosting:** registrar proveedor, dominio/canonical y proxy de producción.
 - [ ] **OPS-03 — Variables de producción:** confirmar catálogo real y `DATABASE_URL`; crear contraseñas/secrets únicos por entorno, validar `ADMIN_SESSION_SECRET` independiente y no usar valores de `.env.example`.
 - [ ] **OPS-02 — Cron:** crear `CRON_SECRET` aleatorio de al menos 32 caracteres y programar `GET /api/cron/expire-orders` cada 15 minutos. Verificar ejecuciones, errores y alertas en el hosting.
